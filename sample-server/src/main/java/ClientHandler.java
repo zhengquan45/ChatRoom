@@ -22,7 +22,7 @@ public class ClientHandler{
         this.clientReadHandler = new ClientReadHandler(socket.getInputStream());
         this.clientWriteHandler = new ClientWriteHandler(socket.getOutputStream());
         this.callBack = callBack;
-        this.clientInfo = MessageFormat.format("[ip:%s,port:%d]", socket.getInetAddress(), socket.getPort());
+        this.clientInfo = String.format("[ip:%s,port:%d]", socket.getInetAddress(), socket.getPort());
         log.info("new client connection. {}",clientInfo);
     }
 
