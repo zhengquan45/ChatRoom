@@ -14,7 +14,22 @@ import java.net.SocketTimeoutException;
  */
 @Slf4j
 public class TCPClient {
-    public static void linkWith(ServerInfo serverInfo) throws IOException {
+    private final Socket socket;
+    private final ClientReadHandler clientReadHandler;
+    private final PrintStream printStream;
+
+    public TCPClient(Socket socket, ClientReadHandler clientReadHandler) throws IOException {
+        this.socket = socket;
+        this.clientReadHandler = clientReadHandler;
+        this.printStream = new PrintStream(socket.getOutputStream());
+    }
+
+    public void exit(){
+        clientReadHandler.exit();
+        CloseUtil.close(printStream,socket);
+    }
+
+    public static TCPClient startWith(ServerInfo serverInfo) throws IOException {
         Socket socket = new Socket();
         socket.setSoTimeout(3000);
         socket.connect(new InetSocketAddress(Inet4Address.getByName(serverInfo.getIp()),serverInfo.getPort()),3000);
@@ -24,30 +39,17 @@ public class TCPClient {
         try {
             ClientReadHandler clientReadHandler = new ClientReadHandler(socket);
             clientReadHandler.start();
-            write(socket);
-            clientReadHandler.exit();
+            return new TCPClient(socket,clientReadHandler);
         }catch (Exception e){
-            log.info("close exception");
+            log.info("connect exception");
+            CloseUtil.close(socket);
         }
-        socket.close();
         log.info("client quit");
+        return null;
     }
 
-    private static void write(Socket socket) throws IOException {
-        InputStream in = System.in;
-        BufferedReader input = new BufferedReader(new InputStreamReader(in));
-
-        PrintStream socketOutput = new PrintStream(socket.getOutputStream());
-
-        while(true){
-            String msg = input.readLine();
-            socketOutput.println(msg);
-
-            if(TCPConstants.END.equalsIgnoreCase(msg)){
-                break;
-            }
-        }
-        socketOutput.close();
+    public void send(String msg) {
+        printStream.println(msg);
     }
 
     static class ClientReadHandler extends Thread {

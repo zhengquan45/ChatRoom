@@ -5,6 +5,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.*;
 
 /**
  * @author zhengquan
@@ -15,9 +16,11 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
     private final int port;
     private ClientListener listener;
     private List<ClientHandler> clientHandlerList = new ArrayList<>();
+    private final ExecutorService forwardThreadPoolExecutor;
 
     public TCPServer(int port) {
         this.port = port;
+        forwardThreadPoolExecutor = Executors.newFixedThreadPool(5);
     }
 
     public boolean start(){
@@ -35,28 +38,38 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
         if(listener!=null){
             listener.exit();
         }
-
-        for (ClientHandler clientHandler : clientHandlerList) {
-            clientHandler.exit();
+        forwardThreadPoolExecutor.shutdown();
+        synchronized (TCPServer.this) {
+            for (ClientHandler clientHandler : clientHandlerList) {
+                clientHandler.exit();
+            }
+            clientHandlerList.clear();
         }
-
-        clientHandlerList.clear();
     }
 
-    public void broadcast(String msg) {
+    public synchronized void broadcast(String msg) {
         for (ClientHandler clientHandler : clientHandlerList) {
             clientHandler.send(msg);
         }
     }
 
     @Override
-    public void onSelfClosed(ClientHandler clientHandler) {
+    public synchronized void onSelfClosed(ClientHandler clientHandler) {
         clientHandlerList.remove(clientHandler);
     }
 
     @Override
     public void onNewMessageArrived(ClientHandler clientHandler, String msg) {
         log.info("receive from {} data {}",clientHandler.getClientInfo(),msg);
+        forwardThreadPoolExecutor.execute(()->{
+            synchronized (TCPServer.this) {
+                for (ClientHandler handler : clientHandlerList) {
+                    if(!handler.equals(clientHandler)) {
+                        handler.send(msg);
+                    }
+                }
+            }
+        });
     }
 
     private class ClientListener extends Thread{
@@ -79,11 +92,12 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
                 try {
                     socket = server.accept();
                     ClientHandler clientHandler = new ClientHandler(socket,TCPServer.this);
-                    clientHandlerList.add(clientHandler);
+                    synchronized (TCPServer.this) {
+                        clientHandlerList.add(clientHandler);
+                    }
                     clientHandler.readToPrint();
                 } catch (IOException e) {
                   log.info("accept client fail. exception:{}",e.getMessage());
-                  continue;
                 }
             }
             log.info("server closed");
