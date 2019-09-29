@@ -1,8 +1,11 @@
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
@@ -15,6 +18,7 @@ import java.util.concurrent.*;
 public class TCPServer implements ClientHandler.ClientHandlerCallBack{
     private final int port;
     private ClientListener listener;
+    private Selector selector;
     private List<ClientHandler> clientHandlerList = new ArrayList<>();
     private final ExecutorService forwardThreadPoolExecutor;
 
@@ -25,7 +29,12 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
 
     public boolean start(){
         try {
-            listener = new ClientListener(port);
+            selector = Selector.open();
+            ServerSocketChannel server = ServerSocketChannel.open();
+            server.configureBlocking(false);
+            server.socket().bind(new InetSocketAddress(port));
+            log.info("server info : {}",server.getLocalAddress().toString());
+            listener = new ClientListener();
             listener.start();
         } catch (IOException e) {
             log.info("create TCPServer fail. exception:{}",e.getMessage());
@@ -73,14 +82,12 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
     }
 
     private class ClientListener extends Thread{
-        private ServerSocket server;
         private boolean done = false;
         private static final String CLIENT_LISTENER_NAME = "Thread-listen-client";
 
-        public ClientListener(int port) throws IOException {
+        public ClientListener() throws IOException {
             super(CLIENT_LISTENER_NAME);
-            server = new ServerSocket(port);
-            log.info("server info. [ip:{} port:{}]",server.getInetAddress(),server.getLocalPort());
+
         }
 
         @Override
