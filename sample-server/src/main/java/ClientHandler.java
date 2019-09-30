@@ -1,8 +1,11 @@
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
-import java.net.Socket;
-import java.text.MessageFormat;
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.SocketChannel;
+import java.util.Iterator;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -10,20 +13,25 @@ import java.util.concurrent.LinkedBlockingQueue;
  * @date 2019/9/22
  */
 @Slf4j
-public class ClientHandler{
-    private final Socket socket;
+public class ClientHandler {
+    private final SocketChannel socketChannel;
     private final ClientReadHandler clientReadHandler;
     private final ClientWriteHandler clientWriteHandler;
     private final ClientHandlerCallBack callBack;
     private final String clientInfo;
 
-    public ClientHandler(Socket socket, ClientHandlerCallBack callBack) throws IOException {
-        this.socket = socket;
-        this.clientReadHandler = new ClientReadHandler(socket.getInputStream());
-        this.clientWriteHandler = new ClientWriteHandler(socket.getOutputStream());
+    public ClientHandler(SocketChannel socketChannel, ClientHandlerCallBack callBack) throws IOException {
+        this.socketChannel = socketChannel;
+        this.socketChannel.configureBlocking(false);
+        Selector readSelector = Selector.open();
+        this.socketChannel.register(readSelector, SelectionKey.OP_READ);
+        Selector writeSelector = Selector.open();
+        this.socketChannel.register(writeSelector, SelectionKey.OP_WRITE);
+        this.clientReadHandler = new ClientReadHandler(readSelector);
+        this.clientWriteHandler = new ClientWriteHandler(writeSelector);
         this.callBack = callBack;
-        this.clientInfo = String.format("[ip:%s,port:%d]", socket.getInetAddress(), socket.getPort());
-        log.info("new client connection. {}",clientInfo);
+        this.clientInfo = socketChannel.getRemoteAddress().toString();
+        log.info("new client connection. {}", clientInfo);
     }
 
     public String getClientInfo() {
@@ -37,8 +45,8 @@ public class ClientHandler{
     public void exit() {
         clientReadHandler.exit();
         clientWriteHandler.exit();
-        CloseUtil.close(socket);
-        log.info("client quit. ip:{},port:{}", socket.getInetAddress(), socket.getPort());
+        CloseUtil.close(socketChannel);
+        log.info("client quit. {}", clientInfo);
     }
 
     public void readToPrint() {
@@ -54,25 +62,29 @@ public class ClientHandler{
     public interface ClientHandlerCallBack {
         /**
          * 关闭自己通知外部的回调
+         *
          * @param clientHandler
          */
         void onSelfClosed(ClientHandler clientHandler);
 
         /**
          * 新信息到达的回调
+         *
          * @param clientHandler
          * @param msg
          */
-        void onNewMessageArrived(ClientHandler clientHandler,String msg);
+        void onNewMessageArrived(ClientHandler clientHandler, String msg);
     }
 
     class ClientReadHandler extends Thread {
 
         private boolean done = false;
-        private final InputStream inputStream;
+        private final Selector selector;
+        private final ByteBuffer byteBuffer;
 
-        ClientReadHandler(InputStream inputStream) {
-            this.inputStream = inputStream;
+        ClientReadHandler(Selector selector) {
+            this.selector = selector;
+            this.byteBuffer = ByteBuffer.allocate(256);
         }
 
         @Override
@@ -80,32 +92,51 @@ public class ClientHandler{
             super.run();
 
             try {
-                BufferedReader socketInput = new BufferedReader(new InputStreamReader(inputStream));
-
-                while (!done) {
-                    String msg = socketInput.readLine();
-                    //exception or timeout
-                    if (msg == null) {
-                        log.warn("client can't read data");
-                        ClientHandler.this.exitBySelf();
-                        break;
+                do {
+                    if (selector.select() == 0) {
+                        if (done) {
+                            break;
+                        }
+                        continue;
                     }
-                    callBack.onNewMessageArrived(ClientHandler.this,msg);
-                }
+                    Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
+                    while (iterator.hasNext()) {
+                        if (done) {
+                            break;
+                        }
+                        SelectionKey key = iterator.next();
+                        iterator.remove();
+                        if (key.isReadable()) {
+                            SocketChannel client = (SocketChannel) key.channel();
+                            byteBuffer.clear();
+                            int read = client.read(byteBuffer);
+                            if (read > 0) {
+                                //丢弃换行符
+                                String msg = new String(byteBuffer.array(), 0, read - 2);
+                                callBack.onNewMessageArrived(ClientHandler.this, msg);
+                            } else {
+                                log.warn("client can't read data");
+                                ClientHandler.this.exitBySelf();
+                                break;
+                            }
+                        }
+                    }
+                }while (!done);
             } catch (IOException e) {
                 if (!done) {
                     log.info("unexpected disconnection from client. exception:{}", e.getMessage());
                     ClientHandler.this.exitBySelf();
                 }
             } finally {
-                CloseUtil.close(inputStream);
+                CloseUtil.close(selector);
             }
 
         }
 
         void exit() {
             done = true;
-            CloseUtil.close(inputStream);
+            selector.wakeup();
+            CloseUtil.close(selector);
         }
     }
 
@@ -113,27 +144,43 @@ public class ClientHandler{
     class ClientWriteHandler extends Thread {
 
         private boolean done = false;
-        private final OutputStream outputStream;
+        private final Selector selector;
+        private final ByteBuffer byteBuffer;
         private final LinkedBlockingQueue<String> queue;
 
-        ClientWriteHandler(OutputStream outputStream) {
-            this.outputStream = outputStream;
+        ClientWriteHandler(Selector selector) {
+            this.selector = selector;
+            this.byteBuffer = ByteBuffer.allocate(256);
             this.queue = new LinkedBlockingQueue<>();
         }
 
         @Override
         public void run() {
             super.run();
-            PrintStream socketOutput = new PrintStream(outputStream);
+
             while (!done) {
                 String msg = null;
                 try {
                     msg = queue.take();
-                } catch (InterruptedException ignore) {}
+                } catch (InterruptedException ignore) {
+                }
                 if (msg != null) {
-                    try {
-                        socketOutput.println(msg);
-                    } catch (Exception ignored) {}
+                   msg = msg+"\n";
+                   byteBuffer.clear();
+                   byteBuffer.put(msg.getBytes());
+                   byteBuffer.flip();
+                    while(!done && byteBuffer.hasRemaining()){
+                        try {
+                            int write = socketChannel.write(byteBuffer);
+                            if(write<0){
+                                log.warn("client can't write data");
+                                ClientHandler.this.exitBySelf();
+                            }
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
                 }
 
             }
@@ -141,7 +188,7 @@ public class ClientHandler{
 
         void exit() {
             done = true;
-            CloseUtil.close(outputStream);
+            CloseUtil.close(selector);
             queue.clear();
         }
 

@@ -2,11 +2,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.*;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -19,6 +17,7 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
     private final int port;
     private ClientListener listener;
     private Selector selector;
+    private ServerSocketChannel server;
     private List<ClientHandler> clientHandlerList = new ArrayList<>();
     private final ExecutorService forwardThreadPoolExecutor;
 
@@ -30,9 +29,10 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
     public boolean start(){
         try {
             selector = Selector.open();
-            ServerSocketChannel server = ServerSocketChannel.open();
+            server = ServerSocketChannel.open();
             server.configureBlocking(false);
             server.socket().bind(new InetSocketAddress(port));
+            server.register(selector, SelectionKey.OP_ACCEPT);
             log.info("server info : {}",server.getLocalAddress().toString());
             listener = new ClientListener();
             listener.start();
@@ -47,13 +47,17 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
         if(listener!=null){
             listener.exit();
         }
-        forwardThreadPoolExecutor.shutdown();
+
+        CloseUtil.close(server,selector);
+
         synchronized (TCPServer.this) {
             for (ClientHandler clientHandler : clientHandlerList) {
                 clientHandler.exit();
             }
             clientHandlerList.clear();
         }
+
+        forwardThreadPoolExecutor.shutdown();
     }
 
     public synchronized void broadcast(String msg) {
@@ -93,16 +97,33 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
         @Override
         public void run() {
             super.run();
+            Selector selector = TCPServer.this.selector;
             log.info("server ready");
             while(!done){
-                Socket socket;
                 try {
-                    socket = server.accept();
-                    ClientHandler clientHandler = new ClientHandler(socket,TCPServer.this);
-                    synchronized (TCPServer.this) {
-                        clientHandlerList.add(clientHandler);
+                    if(selector.select()==0){
+                        if(done) {
+                            break;
+                        }
+                        continue;
                     }
-                    clientHandler.readToPrint();
+                    Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
+                    while(iterator.hasNext()){
+                        if(done){
+                            break;
+                        }
+                        SelectionKey key = iterator.next();
+                        iterator.remove();
+                        if(key.isAcceptable()){
+                            ServerSocketChannel serverSocketChannel = (ServerSocketChannel) key.channel();
+                            SocketChannel socketChannel = serverSocketChannel.accept();
+                            ClientHandler clientHandler = new ClientHandler(socketChannel,TCPServer.this);
+                            synchronized (TCPServer.this) {
+                                clientHandlerList.add(clientHandler);
+                            }
+                            clientHandler.readToPrint();
+                        }
+                    }
                 } catch (IOException e) {
                   log.info("accept client fail. exception:{}",e.getMessage());
                 }
@@ -112,12 +133,7 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
 
         void exit(){
             done = true;
-            try {
-                server.close();
-            } catch (IOException e) {
-                log.info("ServerSocket close fail. exception:{}",e.getMessage());
-            }
-
+            selector.wakeup();
         }
     }
 
