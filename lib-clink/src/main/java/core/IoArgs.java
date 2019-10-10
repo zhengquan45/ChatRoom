@@ -19,7 +19,8 @@ public class IoArgs {
     public String buffer2String(){
         return new String(buffer.array(),0,buffer.position()-1);
     }
-    interface  IoArgsEventListener{
+
+    public interface  IoArgsEventListener{
         void onStarted(IoArgs args);
         void onCompleted(IoArgs args);
     }
