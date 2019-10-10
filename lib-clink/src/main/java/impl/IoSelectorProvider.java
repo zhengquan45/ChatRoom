@@ -58,6 +58,8 @@ public class IoSelectorProvider implements IoProvider {
                 }
             }
         };
+        writeThread.setPriority(Thread.MAX_PRIORITY);
+        writeThread.start();
     }
 
     private void startRead() {
@@ -83,7 +85,8 @@ public class IoSelectorProvider implements IoProvider {
                 }
             }
         };
-
+        readThread.setPriority(Thread.MAX_PRIORITY);
+        readThread.start();
     }
 
     public boolean registerInput(SocketChannel channel, HandleInputCallback callback) {
