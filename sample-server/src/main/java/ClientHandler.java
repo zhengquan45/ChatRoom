@@ -1,3 +1,4 @@
+import core.Connector;
 import lombok.extern.slf4j.Slf4j;
 import utils.CloseUtil;
 
@@ -6,7 +7,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.Iterator;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -16,19 +16,31 @@ import java.util.concurrent.LinkedBlockingQueue;
 @Slf4j
 public class ClientHandler {
     private final SocketChannel socketChannel;
-    private final ClientReadHandler clientReadHandler;
+    private final Connector connector;
     private final ClientWriteHandler clientWriteHandler;
     private final ClientHandlerCallBack callBack;
     private final String clientInfo;
 
     public ClientHandler(SocketChannel socketChannel, ClientHandlerCallBack callBack) throws IOException {
         this.socketChannel = socketChannel;
-        this.socketChannel.configureBlocking(false);
-        Selector readSelector = Selector.open();
-        this.socketChannel.register(readSelector, SelectionKey.OP_READ);
+
+        connector = new Connector(){
+            @Override
+            public void onChannelClosed(SocketChannel channel) {
+                super.onChannelClosed(channel);
+                exitBySelf();
+            }
+
+            @Override
+            protected void onReceiveNewMessage(String msg) {
+                super.onReceiveNewMessage(msg);
+                callBack.onNewMessageArrived(ClientHandler.this,msg);
+            }
+        };
+        connector.setup(socketChannel);
+
         Selector writeSelector = Selector.open();
         this.socketChannel.register(writeSelector, SelectionKey.OP_WRITE);
-        this.clientReadHandler = new ClientReadHandler(readSelector);
         this.clientWriteHandler = new ClientWriteHandler(writeSelector);
         this.callBack = callBack;
         this.clientInfo = socketChannel.getRemoteAddress().toString();
@@ -44,15 +56,9 @@ public class ClientHandler {
     }
 
     public void exit() {
-        clientReadHandler.exit();
         clientWriteHandler.exit();
-        CloseUtil.close(socketChannel);
+        CloseUtil.close(connector,socketChannel);
         log.info("client quit. {}", clientInfo);
-    }
-
-    public void readToPrint() {
-        clientReadHandler.start();
-        clientWriteHandler.start();
     }
 
     private void exitBySelf() {
@@ -76,71 +82,6 @@ public class ClientHandler {
          */
         void onNewMessageArrived(ClientHandler clientHandler, String msg);
     }
-
-    class ClientReadHandler extends Thread {
-
-        private boolean done = false;
-        private final Selector selector;
-        private final ByteBuffer byteBuffer;
-
-        ClientReadHandler(Selector selector) {
-            this.selector = selector;
-            this.byteBuffer = ByteBuffer.allocate(256);
-        }
-
-        @Override
-        public void run() {
-            super.run();
-
-            try {
-                do {
-                    if (selector.select() == 0) {
-                        if (done) {
-                            break;
-                        }
-                        continue;
-                    }
-                    Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
-                    while (iterator.hasNext()) {
-                        if (done) {
-                            break;
-                        }
-                        SelectionKey key = iterator.next();
-                        iterator.remove();
-                        if (key.isReadable()) {
-                            SocketChannel client = (SocketChannel) key.channel();
-                            byteBuffer.clear();
-                            int read = client.read(byteBuffer);
-                            if (read > 0) {
-                                //丢弃换行符
-                                String msg = new String(byteBuffer.array(), 0, read - 2);
-                                callBack.onNewMessageArrived(ClientHandler.this, msg);
-                            } else {
-                                log.warn("client can't read data");
-                                ClientHandler.this.exitBySelf();
-                                break;
-                            }
-                        }
-                    }
-                }while (!done);
-            } catch (IOException e) {
-                if (!done) {
-                    log.info("unexpected disconnection from client. exception:{}", e.getMessage());
-                    ClientHandler.this.exitBySelf();
-                }
-            } finally {
-                CloseUtil.close(selector);
-            }
-
-        }
-
-        void exit() {
-            done = true;
-            selector.wakeup();
-            CloseUtil.close(selector);
-        }
-    }
-
 
     class ClientWriteHandler extends Thread {
 

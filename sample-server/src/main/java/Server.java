@@ -1,3 +1,5 @@
+import core.IoContext;
+import impl.IoSelectorProvider;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
@@ -13,7 +15,7 @@ public class Server {
 
 
     public static void main(String[] args) throws IOException {
-        
+        IoContext ioContext = IoContext.setUp().ioProvider(new IoSelectorProvider()).start();
         TCPServer tcpServer = new TCPServer(TCPConstants.PORT_SERVER);
         boolean succeed = tcpServer.start();
         if(!succeed){
@@ -31,5 +33,6 @@ public class Server {
 
         UDPProvider.stop();
         tcpServer.stop();
+        ioContext.close();
     }
 }

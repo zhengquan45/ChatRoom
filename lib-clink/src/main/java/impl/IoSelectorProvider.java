@@ -1,6 +1,7 @@
 package impl;
 
 import core.IoProvider;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
@@ -13,10 +14,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+@Slf4j
 public class IoSelectorProvider implements IoProvider {
     private final AtomicBoolean closed = new AtomicBoolean(false);
-
-    //是否处于某个过程
     private final AtomicBoolean inRegInput = new AtomicBoolean(false);
     private final AtomicBoolean inRegOutput = new AtomicBoolean(false);
     private final Selector readSelector;
@@ -68,7 +68,9 @@ public class IoSelectorProvider implements IoProvider {
             public void run() {
                 while (!closed.get()) {
                     try {
-                        if (readSelector.select() == 0) {
+                        int select = readSelector.select();
+                        log.info("startRead selector no block");
+                        if (select == 0) {
                             waitSelection(inRegInput);
                             continue;
                         }
@@ -137,6 +139,7 @@ public class IoSelectorProvider implements IoProvider {
             locker.set(true);
             try {
                 //make selector.select() don't block
+                log.info("register selector wakeup");
                 selector.wakeup();
                 SelectionKey key = null;
                 if (channel.isRegistered()) {

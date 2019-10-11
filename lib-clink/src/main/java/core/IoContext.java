@@ -21,15 +21,16 @@ public class IoContext implements Closeable {
     }
 
 
-    public static StartedBoot setUp(){
+    public static StartedBoot setUp() {
         return new StartedBoot();
     }
 
+    @Override
     public void close() throws IOException {
         ioProvider.close();
     }
 
-    public static class StartedBoot{
+    public static class StartedBoot {
         private IoProvider ioProvider;
 
         private StartedBoot() {
@@ -40,8 +41,8 @@ public class IoContext implements Closeable {
             return this;
         }
 
-        public IoContext start(){
-            INSTANCE= new IoContext(ioProvider);
+        public IoContext start() {
+            INSTANCE = new IoContext(ioProvider);
             return INSTANCE;
         }
     }

@@ -74,7 +74,6 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
 
     @Override
     public void onNewMessageArrived(ClientHandler clientHandler, String msg) {
-        log.info("receive from {} data {}",clientHandler.getClientInfo(),msg);
         forwardThreadPoolExecutor.execute(()->{
             synchronized (TCPServer.this) {
                 for (ClientHandler handler : clientHandlerList) {
@@ -122,7 +121,6 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
                             synchronized (TCPServer.this) {
                                 clientHandlerList.add(clientHandler);
                             }
-                            clientHandler.readToPrint();
                         }
                     }
                 } catch (IOException e) {

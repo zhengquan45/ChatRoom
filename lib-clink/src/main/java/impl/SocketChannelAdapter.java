@@ -57,6 +57,9 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
         void onChannelClosed(SocketChannel channel);
     }
 
+    /**
+     * this is a runnable,a task for .read data from channel to IoArgs.
+     */
     private final IoProvider.HandleInputCallback handleInputCallback = new IoProvider.HandleInputCallback() {
         protected void canProviderInput() {
             if(closed.get()){
