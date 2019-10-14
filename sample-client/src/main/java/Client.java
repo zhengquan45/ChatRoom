@@ -1,3 +1,5 @@
+import core.IoContext;
+import impl.IoSelectorProvider;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
@@ -9,7 +11,8 @@ import java.io.*;
 @Slf4j
 public class Client {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
+        IoContext ioContext = IoContext.setUp().ioProvider(new IoSelectorProvider()).start();
         ServerInfo serverInfo = UDPSearcher.searchServer(10000);
         log.info("server:{}", serverInfo.toString());
         TCPClient tcpClient = null;
@@ -25,6 +28,7 @@ public class Client {
                 tcpClient.exit();
             }
         }
+        ioContext.close();
     }
 
     private static void write(TCPClient tcpClient) throws IOException {

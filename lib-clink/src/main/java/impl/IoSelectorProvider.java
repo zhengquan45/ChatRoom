@@ -68,9 +68,7 @@ public class IoSelectorProvider implements IoProvider {
             public void run() {
                 while (!closed.get()) {
                     try {
-                        int select = readSelector.select();
-                        log.info("startRead selector no block");
-                        if (select == 0) {
+                        if (readSelector.select() == 0) {
                             waitSelection(inRegInput);
                             continue;
                         }
@@ -139,7 +137,6 @@ public class IoSelectorProvider implements IoProvider {
             locker.set(true);
             try {
                 //make selector.select() don't block
-                log.info("register selector wakeup");
                 selector.wakeup();
                 SelectionKey key = null;
                 if (channel.isRegistered()) {

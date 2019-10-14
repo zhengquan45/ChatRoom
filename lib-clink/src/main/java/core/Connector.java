@@ -1,7 +1,12 @@
 package core;
 
+import box.StringReceivePacket;
+import box.StringSendPacket;
 import impl.SocketChannelAdapter;
+import impl.async.AsyncReceiveDispatcher;
+import impl.async.AsyncSendDispatcher;
 import lombok.extern.slf4j.Slf4j;
+import utils.CloseUtil;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -10,33 +15,35 @@ import java.util.UUID;
 
 
 @Slf4j
-public class Connector implements Closeable ,SocketChannelAdapter.onChannelStatusChangedListener{
+public class Connector implements Closeable, SocketChannelAdapter.onChannelStatusChangedListener {
     private UUID key = UUID.randomUUID();
     private SocketChannel channel;
     private Sender sender;
     private Receiver receiver;
+    private SendDispatcher sendDispatcher;
+    private ReceiveDispatcher receiveDispatcher;
 
     public void setup(SocketChannel socketChannel) throws IOException {
         this.channel = socketChannel;
         IoContext ioContext = IoContext.get();
-        SocketChannelAdapter adapter = new SocketChannelAdapter(channel,ioContext.getIoProvider(),this);
+        SocketChannelAdapter adapter = new SocketChannelAdapter(channel, ioContext.getIoProvider(), this);
         sender = adapter;
         receiver = adapter;
-        readNextMessage();
+        sendDispatcher = new AsyncSendDispatcher(sender);
+        receiveDispatcher = new AsyncReceiveDispatcher(receiver,echoListener);
+        receiveDispatcher.start();
     }
 
-    private void readNextMessage(){
-        if(receiver!=null){
-            try {
-                receiver.receiveAsync(echoListener);
-            } catch (IOException e) {
-                log.error("receive data exception:",e);
-            }
-        }
+
+
+    public void send(String msg) {
+        SendPacket packet = new StringSendPacket(msg);
+        sendDispatcher.send(packet);
     }
+
     @Override
     public void close() throws IOException {
-
+        CloseUtil.close(receiveDispatcher,sendDispatcher,sender,receiver,channel);
     }
 
     @Override
@@ -44,20 +51,18 @@ public class Connector implements Closeable ,SocketChannelAdapter.onChannelStatu
 
     }
 
-    private IoArgs.IoArgsEventListener echoListener = new IoArgs.IoArgsEventListener() {
-        @Override
-        public void onStarted(IoArgs args) {
-
-        }
+    private ReceiveDispatcher.ReceivePacketCallBack echoListener = new ReceiveDispatcher.ReceivePacketCallBack() {
 
         @Override
-        public void onCompleted(IoArgs args) {
-            onReceiveNewMessage(args.buffer2String());
-            readNextMessage();
+        public void onReceivePacketCompleted(ReceivePacket receivePacket) {
+            if(receivePacket instanceof StringReceivePacket){
+                String msg = ((StringReceivePacket) receivePacket).buffer2String();
+                onReceiveNewMessage(msg);
+            }
         }
     };
 
     protected void onReceiveNewMessage(String msg) {
-        log.info("{}:{}",key.toString(),msg);
+        log.info("{}:{}", key.toString(), msg);
     }
 }
