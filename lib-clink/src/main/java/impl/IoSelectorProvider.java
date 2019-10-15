@@ -89,11 +89,11 @@ public class IoSelectorProvider implements IoProvider {
         readThread.start();
     }
 
-    public boolean registerInput(SocketChannel channel, HandleInputCallback callback) {
+    public boolean registerInput(SocketChannel channel, HandleInputTask callback) {
         return registerSelector(channel, readSelector, SelectionKey.OP_READ, inRegInput, inputCallbackMap, callback) != null;
     }
 
-    public boolean registerOutput(SocketChannel channel, HandleOutputCallback callback) {
+    public boolean registerOutput(SocketChannel channel, HandleOutputTask callback) {
         return registerSelector(channel, writeSelector, SelectionKey.OP_WRITE, inRegOutput, outputCallbackMap, callback) != null;
     }
 

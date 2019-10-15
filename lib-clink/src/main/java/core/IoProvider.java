@@ -5,15 +5,15 @@ import java.nio.channels.SocketChannel;
 
 public interface IoProvider extends Closeable {
 
-    boolean registerInput(SocketChannel channel, HandleInputCallback callback);
+    boolean registerInput(SocketChannel channel, HandleInputTask callback);
 
-    boolean registerOutput(SocketChannel channel, HandleOutputCallback callback);
+    boolean registerOutput(SocketChannel channel, HandleOutputTask callback);
 
     void unRegisterInput(SocketChannel channel);
 
     void unRegisterOutput(SocketChannel channel);
 
-    abstract class HandleInputCallback implements Runnable {
+    abstract class HandleInputTask implements Runnable {
         public void run() {
             canProviderInput();
         }
@@ -21,7 +21,7 @@ public interface IoProvider extends Closeable {
         protected abstract void canProviderInput();
     }
 
-    abstract class HandleOutputCallback implements Runnable {
+    abstract class HandleOutputTask implements Runnable {
 
         private IoArgs attach;
 

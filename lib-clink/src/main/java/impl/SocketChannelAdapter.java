@@ -17,22 +17,22 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final SocketChannel channel;
     private final IoProvider ioProvider;
-    private final onChannelStatusChangedListener Listener;
+    private final onChannelStatusChangedListener listener;
     private IoArgs.IoArgsEventListener receiveListener;
     private IoArgs.IoArgsEventListener sendListener;
 
     private IoArgs args;
 
-    public SocketChannelAdapter(SocketChannel channel, IoProvider ioProvider, onChannelStatusChangedListener Listener) throws IOException {
+    public SocketChannelAdapter(SocketChannel channel, IoProvider ioProvider, onChannelStatusChangedListener listener) throws IOException {
         this.channel = channel;
         this.ioProvider = ioProvider;
-        this.Listener = Listener;
+        this.listener = listener;
         channel.configureBlocking(false);
     }
 
     @Override
-    public void setReceiveListener(IoArgs.IoArgsEventListener listener) {
-        receiveListener = listener;
+    public void setReceiveListener(IoArgs.IoArgsEventListener receiveListener) {
+        this.receiveListener = receiveListener;
     }
 
     @Override
@@ -41,16 +41,16 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
             throw new IOException("current channel is already closed.");
         }
         this.args = args;
-        return ioProvider.registerInput(channel,handleInputCallback);
+        return ioProvider.registerInput(channel,handleInputTask);
     }
 
-    public boolean sendAsync(IoArgs args, IoArgs.IoArgsEventListener listener) throws IOException {
+    public boolean sendAsync(IoArgs args, IoArgs.IoArgsEventListener sendListener) throws IOException {
         if(closed.get()){
             throw new IOException("current channel is already closed.");
         }
-        sendListener = listener;
-        handleOutputCallback.setAttach(args);
-        return ioProvider.registerOutput(channel,handleOutputCallback);
+        this.sendListener = sendListener;
+        handleOutputTask.setAttach(args);
+        return ioProvider.registerOutput(channel,handleOutputTask);
     }
 
     public void close() throws IOException {
@@ -68,7 +68,7 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
     /**
      * this is a runnable,a task for .readFrom data from channel to IoArgs.
      */
-    private final IoProvider.HandleInputCallback handleInputCallback = new IoProvider.HandleInputCallback() {
+    private final IoProvider.HandleInputTask handleInputTask = new IoProvider.HandleInputTask() {
         protected void canProviderInput() {
             if(closed.get()){
                 return;
@@ -89,7 +89,7 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
         }
     };
 
-    private final IoProvider.HandleOutputCallback handleOutputCallback = new IoProvider.HandleOutputCallback() {
+    private final IoProvider.HandleOutputTask handleOutputTask = new IoProvider.HandleOutputTask() {
         @Override
         protected void canProviderOutput(IoArgs attach) {
             if(closed.get()){
