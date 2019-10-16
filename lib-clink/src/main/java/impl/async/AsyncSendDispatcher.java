@@ -60,6 +60,7 @@ public class AsyncSendDispatcher implements SendDispatcher {
         ioArgs.startWriting();
         if (position >= total) {
             sendNextPacket();
+            return;
         } else if (position == 0) {
             //首包
             ioArgs.writeLength(total);

@@ -1,3 +1,5 @@
+import core.IoContext;
+import impl.IoSelectorProvider;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -8,13 +10,14 @@ import java.util.List;
 public class ClientTest {
     public static boolean done = false;
 
-    public static final int CLIENT_NUM = 1000;
+    public static final int CLIENT_NUM = 10;
 
     public static final int SEND_SPACE = 2000;
 
     public static final int CONNECT_SPACE = 20;
 
     public static void main(String[] args) throws IOException {
+        IoContext ioContext = IoContext.setUp().ioProvider(new IoSelectorProvider()).start();
         ServerInfo serverInfo = UDPSearcher.searchServer(10000);
         log.info("server:{}", serverInfo.toString());
         if(serverInfo==null){
@@ -73,6 +76,7 @@ public class ClientTest {
         for (TCPClient tcpClient : tcpClientList) {
             tcpClient.exit();
         }
+        ioContext.close();
 
     }
 }
