@@ -7,6 +7,8 @@ import core.Sender;
 import utils.CloseUtil;
 
 import java.io.IOException;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -18,12 +20,14 @@ public class AsyncSendDispatcher implements SendDispatcher {
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     private IoArgs ioArgs = new IoArgs();
-    private SendPacket curSendPacket;
-    private int total;
-    private int position;
+    private SendPacket<?> curSendPacket;
+    private ReadableByteChannel channel;
+    private long total;
+    private long position;
 
     public AsyncSendDispatcher(Sender sender) {
         this.sender = sender;
+        this.sender.setSendProcessor(sendProcessor);
     }
 
     @Override
@@ -57,24 +61,27 @@ public class AsyncSendDispatcher implements SendDispatcher {
     }
 
     private void sendCurrentPacket() {
-        ioArgs.startWriting();
         if (position >= total) {
+            completePacket(position == total);
             sendNextPacket();
             return;
-        } else if (position == 0) {
-            //首包
-            ioArgs.writeLength(total);
         }
-        //拆包
-        byte[] bytes = curSendPacket.bytes();
-        int count = ioArgs.readFrom(bytes, position);
-        position += count;
-        ioArgs.finishWriting();
         try {
-            sender.sendAsync(ioArgs, ioArgsEventListener);
+            sender.postSendAsync();
         } catch (IOException e) {
             closeAndNotify();
         }
+    }
+
+    private void completePacket(boolean succeed) {
+        if (curSendPacket == null) {
+            return;
+        }
+        CloseUtil.close(curSendPacket, channel);
+        curSendPacket = null;
+        channel = null;
+        total = 0;
+        position = 0;
     }
 
     private void closeAndNotify() {
@@ -86,27 +93,44 @@ public class AsyncSendDispatcher implements SendDispatcher {
 
     }
 
-    private final IoArgs.IoArgsEventListener ioArgsEventListener = new IoArgs.IoArgsEventListener() {
+    private final IoArgs.IoArgsEventProcessor sendProcessor = new IoArgs.IoArgsEventProcessor() {
 
         @Override
-        public void onStarted(IoArgs args) {
-
+        public IoArgs provideIoArgs() {
+            if (channel == null) {
+                channel = Channels.newChannel(curSendPacket.open());
+                ioArgs.limit(4);
+                ioArgs.writeLength((int) curSendPacket.getLength());
+            } else {
+                ioArgs.limit((int) Math.min(total - position, ioArgs.capacity()));
+                try {
+                    int count = ioArgs.readFrom(channel);
+                    position += count;
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            }
+            return ioArgs;
         }
 
         @Override
-        public void onCompleted(IoArgs args) {
+        public void onConsumeFailed(IoArgs ioArgs, Exception e) {
+            e.printStackTrace();
+        }
+
+        @Override
+        public void onConsumeCompleted(IoArgs ioArgs) {
             sendCurrentPacket();
         }
+
     };
 
     @Override
     public void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
             sending.set(false);
-            if (curSendPacket != null) {
-                CloseUtil.close(curSendPacket);
-                curSendPacket = null;
-            }
+            completePacket(false);
         }
     }
 }

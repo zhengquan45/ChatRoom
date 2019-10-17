@@ -8,6 +8,8 @@ import core.Receiver;
 import utils.CloseUtil;
 
 import java.io.IOException;
+import java.nio.channels.Channels;
+import java.nio.channels.WritableByteChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AsyncReceiveDispatcher implements ReceiveDispatcher {
@@ -16,14 +18,14 @@ public class AsyncReceiveDispatcher implements ReceiveDispatcher {
     private final ReceivePacketCallBack callBack;
 
     private IoArgs args = new IoArgs();
-    private ReceivePacket curReceivePacket;
-    private byte[] buffer;
-    private int total;
-    private int position;
+    private ReceivePacket<?> curReceivePacket;
+    private WritableByteChannel channel;
+    private long total;
+    private long position;
 
     public AsyncReceiveDispatcher(Receiver receiver, ReceivePacketCallBack callBack) {
         this.receiver = receiver;
-        this.receiver.setReceiveListener(ioArgsEventListener);
+        this.receiver.setReceiveProcessor(receiveProcessor);
         this.callBack = callBack;
     }
 
@@ -34,7 +36,7 @@ public class AsyncReceiveDispatcher implements ReceiveDispatcher {
 
     private void registerReceive() {
         try {
-            receiver.receiveAsync(args);
+            receiver.postReceiveAsync();
         } catch (IOException e) {
             closeAndNotify();
         }
@@ -49,21 +51,27 @@ public class AsyncReceiveDispatcher implements ReceiveDispatcher {
 
     }
 
-    private final IoArgs.IoArgsEventListener ioArgsEventListener = new IoArgs.IoArgsEventListener() {
+    private final IoArgs.IoArgsEventProcessor receiveProcessor = new IoArgs.IoArgsEventProcessor() {
 
         @Override
-        public void onStarted(IoArgs args) {
+        public IoArgs provideIoArgs() {
             int receiveSize;
             if (curReceivePacket == null) {
                 receiveSize = 4;
             } else {
-                receiveSize = Math.min(total-position,args.capacity());
+                receiveSize = (int) Math.min(total - position, args.capacity());
             }
             args.limit(receiveSize);
+            return args;
         }
 
         @Override
-        public void onCompleted(IoArgs args) {
+        public void onConsumeFailed(IoArgs ioArgs, Exception e) {
+            e.printStackTrace();
+        }
+
+        @Override
+        public void onConsumeCompleted(IoArgs ioArgs) {
             assemblePacket(args);
             registerReceive();
         }
@@ -71,38 +79,38 @@ public class AsyncReceiveDispatcher implements ReceiveDispatcher {
 
     private void assemblePacket(IoArgs args) {
         //包头
-        if(curReceivePacket==null){
+        if (curReceivePacket == null) {
             int length = args.readLength();
             curReceivePacket = new StringReceivePacket(length);
-            buffer = new byte[length];
+            channel = Channels.newChannel(curReceivePacket.open());
             total = length;
             position = 0;
         }
-        int count = args.writeTo(buffer,0);
-        if(count >0){
-            curReceivePacket.save(buffer,count);
-            position+=count;
-            if(position==total){
-                completePacket();
+        try {
+            int count = args.writeTo(channel);
+            position += count;
+            if (position == total) {
+                completePacket(true);
                 curReceivePacket = null;
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+            completePacket(false);
         }
 
     }
 
-    private void completePacket() {
-        ReceivePacket packet = this.curReceivePacket;
-        CloseUtil.close(packet);
-        callBack.onReceivePacketCompleted(packet);
+    private void completePacket(boolean succeed) {
+        CloseUtil.close(curReceivePacket, channel);
+        callBack.onReceivePacketCompleted(curReceivePacket);
+        curReceivePacket = null;
+        channel = null;
     }
 
     @Override
     public void close() throws IOException {
-        if(closed.compareAndSet(false,true)){
-            if(curReceivePacket!=null){
-                CloseUtil.close(curReceivePacket);
-                curReceivePacket = null;
-            }
+        if (closed.compareAndSet(false, true)) {
+            completePacket(false);
         }
     }
 }

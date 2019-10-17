@@ -1,10 +1,14 @@
 package core;
 
-public abstract class SendPacket extends Packet{
-    public abstract byte[]bytes();
+
+import java.io.InputStream;
+
+public abstract class SendPacket<T extends InputStream> extends Packet<T> {
+
     public boolean canceled;
 
     public boolean isCanceled() {
         return canceled;
     }
+
 }

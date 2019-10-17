@@ -14,10 +14,12 @@ public class CloseUtil {
             return;
         }
         for (Closeable closeable : closeables) {
-            try {
-                closeable.close();
-            } catch (IOException e) {
-                e.printStackTrace();
+            if(closeable!=null) {
+                try {
+                    closeable.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
