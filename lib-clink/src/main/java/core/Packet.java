@@ -6,30 +6,27 @@ import java.io.IOException;
 /**
  * type length only readFrom.
  */
-public abstract class Packet<T extends Closeable> implements Closeable {
+public abstract class Packet<Stream extends Closeable> implements Closeable {
 
-    private byte type;
-    private long length;
-    protected T stream;
-    public byte getType() {
-        return type;
-    }
+    public static final byte TYPE_MEMORY_BYTES = 1;
+    public static final byte TYPE_MEMORY_STRING = 2;
+    public static final byte TYPE_MEMORY_FILE = 3;
+    public static final byte TYPE_MEMORY_DIRECT = 4;
 
-    public void setType(byte type) {
-        this.type = type;
-    }
+    protected long length;
+    protected Stream stream;
 
-    public long getLength() {
+    public long length() {
         return length;
     }
 
-    public void setLength(long length) {
-        this.length = length;
-    }
 
-    protected abstract T createStream();
+    protected abstract Stream createStream();
 
-    public final T open() {
+    protected abstract byte type();
+
+
+    public final Stream open() {
         if (stream == null) {
             stream = createStream();
         }

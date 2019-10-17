@@ -1,19 +1,13 @@
 package box;
 
-import core.SendPacket;
-
-import java.io.ByteArrayInputStream;
-
-public class StringSendPacket extends SendPacket<ByteArrayInputStream> {
-    private final byte[] bytes;
+public class StringSendPacket extends BytesSendPacket {
 
     public StringSendPacket(String msg) {
-        this.bytes = msg.getBytes();
-        setLength(bytes.length);
+       super(msg.getBytes());
     }
 
     @Override
-    protected ByteArrayInputStream createStream() {
-        return new ByteArrayInputStream(bytes);
+    protected byte type() {
+        return TYPE_MEMORY_STRING;
     }
 }

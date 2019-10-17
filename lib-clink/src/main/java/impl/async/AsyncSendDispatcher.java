@@ -55,7 +55,7 @@ public class AsyncSendDispatcher implements SendDispatcher {
             sending.set(false);
             return;
         }
-        total = curSendPacket.getLength();
+        total = curSendPacket.length();
         position = 0;
         sendCurrentPacket();
     }
@@ -100,7 +100,7 @@ public class AsyncSendDispatcher implements SendDispatcher {
             if (channel == null) {
                 channel = Channels.newChannel(curSendPacket.open());
                 ioArgs.limit(4);
-                ioArgs.writeLength((int) curSendPacket.getLength());
+                ioArgs.writeLength((int) curSendPacket.length());
             } else {
                 ioArgs.limit((int) Math.min(total - position, ioArgs.capacity()));
                 try {

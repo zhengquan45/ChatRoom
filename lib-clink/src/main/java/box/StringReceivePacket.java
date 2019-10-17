@@ -1,29 +1,20 @@
 package box;
 
-import core.ReceivePacket;
-
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 
-public class StringReceivePacket extends ReceivePacket<ByteArrayOutputStream> {
-    private String string;
+public class StringReceivePacket extends AbsByteArrayReceivePacket<String> {
 
     public StringReceivePacket(int len) {
-        setLength(len);
-    }
-
-    public String string(){
-        return string;
+        super(len);
     }
 
     @Override
-    protected void closeStream() throws IOException {
-        super.closeStream();
-        string = new String(stream.toByteArray());
+    protected String buildEntity(ByteArrayOutputStream stream) {
+        return new String(stream.toByteArray());
     }
 
     @Override
-    protected ByteArrayOutputStream createStream() {
-        return new ByteArrayOutputStream((int) getLength());
+    protected byte type() {
+        return TYPE_MEMORY_STRING;
     }
 }

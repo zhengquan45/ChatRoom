@@ -1,6 +1,5 @@
 package core;
 
-import box.StringReceivePacket;
 import box.StringSendPacket;
 import impl.SocketChannelAdapter;
 import impl.async.AsyncReceiveDispatcher;
@@ -55,14 +54,11 @@ public class Connector implements Closeable, SocketChannelAdapter.onChannelStatu
 
         @Override
         public void onReceivePacketCompleted(ReceivePacket receivePacket) {
-            if(receivePacket instanceof StringReceivePacket){
-                String msg = ((StringReceivePacket) receivePacket).string();
-                onReceiveNewMessage(msg);
-            }
+            onReceiveNewPacket(receivePacket);
         }
     };
 
-    protected void onReceiveNewMessage(String msg) {
-        log.info("{}:{}", key.toString(), msg);
+    protected void onReceiveNewPacket(ReceivePacket packet) {
+        log.info("{}:[New Packet]-Type:{},length:{}",key.toString(),packet.type(),packet.length());
     }
 }
