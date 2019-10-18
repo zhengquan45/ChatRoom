@@ -23,7 +23,7 @@ public abstract class Packet<Stream extends Closeable> implements Closeable {
 
     protected abstract Stream createStream();
 
-    protected abstract byte type();
+    public abstract byte type();
 
 
     public final Stream open() {

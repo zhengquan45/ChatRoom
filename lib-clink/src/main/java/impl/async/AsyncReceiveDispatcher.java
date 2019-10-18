@@ -1,10 +1,6 @@
 package impl.async;
 
-import box.StringReceivePacket;
-import core.IoArgs;
-import core.ReceiveDispatcher;
-import core.ReceivePacket;
-import core.Receiver;
+import core.*;
 import utils.CloseUtil;
 
 import java.io.IOException;
@@ -81,7 +77,8 @@ public class AsyncReceiveDispatcher implements ReceiveDispatcher {
         //包头
         if (curReceivePacket == null) {
             int length = args.readLength();
-            curReceivePacket = new StringReceivePacket(length);
+            byte type = length >200? Packet.TYPE_MEMORY_FILE:Packet.TYPE_MEMORY_STRING;
+            curReceivePacket = callBack.onArrivedNewPacket(type,length);
             channel = Channels.newChannel(curReceivePacket.open());
             total = length;
             position = 0;

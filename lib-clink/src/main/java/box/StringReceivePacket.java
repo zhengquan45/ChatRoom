@@ -4,7 +4,7 @@ import java.io.ByteArrayOutputStream;
 
 public class StringReceivePacket extends AbsByteArrayReceivePacket<String> {
 
-    public StringReceivePacket(int len) {
+    public StringReceivePacket(long len) {
         super(len);
     }
 
@@ -14,7 +14,7 @@ public class StringReceivePacket extends AbsByteArrayReceivePacket<String> {
     }
 
     @Override
-    protected byte type() {
+    public byte type() {
         return TYPE_MEMORY_STRING;
     }
 }

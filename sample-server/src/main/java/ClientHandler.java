@@ -1,8 +1,11 @@
 import core.Connector;
+import core.Packet;
+import core.ReceivePacket;
 import lombok.extern.slf4j.Slf4j;
 import utils.CloseUtil;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.nio.channels.SocketChannel;
 
 /**
@@ -13,9 +16,11 @@ import java.nio.channels.SocketChannel;
 public class ClientHandler extends Connector{
     private final ClientHandlerCallBack callBack;
     private final String clientInfo;
+    public final File cachePath;
 
-    public ClientHandler(SocketChannel socketChannel, ClientHandlerCallBack callBack) throws IOException {
+    public ClientHandler(SocketChannel socketChannel, ClientHandlerCallBack callBack, File cachePath) throws IOException {
         this.callBack = callBack;
+        this.cachePath = cachePath;
         setup(socketChannel);
         this.clientInfo = socketChannel.getRemoteAddress().toString();
         log.info("new client connection. {}", clientInfo);
@@ -33,9 +38,18 @@ public class ClientHandler extends Connector{
     }
 
     @Override
-    protected void onReceiveNewMessage(String msg) {
-        super.onReceiveNewMessage(msg);
-        callBack.onNewMessageArrived(this,msg);
+    protected File createNewReceiveFile() {
+        return Foo.createRandomTemp(cachePath);
+    }
+
+    @Override
+    protected void onReceivedNewPacket(ReceivePacket packet) {
+        super.onReceivedNewPacket(packet);
+        if (Packet.TYPE_MEMORY_STRING == packet.type()) {
+            String string = (String) packet.entity();
+            log.info("{}:{}", getKey(), string);
+            callBack.onNewMessageArrived(this,string);
+        }
     }
 
     private void exitBySelf() {

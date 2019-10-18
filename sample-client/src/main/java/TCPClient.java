@@ -1,12 +1,13 @@
 import core.Connector;
+import core.Packet;
+import core.ReceivePacket;
 import lombok.extern.slf4j.Slf4j;
 import utils.CloseUtil;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
 import java.nio.channels.SocketChannel;
 
 
@@ -17,7 +18,10 @@ import java.nio.channels.SocketChannel;
 @Slf4j
 public class TCPClient extends Connector {
 
-    public TCPClient(SocketChannel channel) throws IOException {
+    public final File cachePath;
+
+    public TCPClient(SocketChannel channel, File cachePath) throws IOException {
+        this.cachePath = cachePath;
         setup(channel);
     }
 
@@ -31,8 +35,21 @@ public class TCPClient extends Connector {
         log.error("connection closed");
     }
 
+    @Override
+    protected File createNewReceiveFile() {
+        return Foo.createRandomTemp(cachePath);
+    }
 
-    public static TCPClient startWith(ServerInfo serverInfo) throws IOException {
+    @Override
+    protected void onReceivedNewPacket(ReceivePacket packet) {
+        super.onReceivedNewPacket(packet);
+        if (Packet.TYPE_MEMORY_STRING == packet.type()) {
+            String string = (String) packet.entity();
+            log.info("{}:{}", getKey(), string);
+        }
+    }
+
+    public static TCPClient startWith(ServerInfo serverInfo, File cachePath) throws IOException {
         SocketChannel channel = SocketChannel.open();
 
         channel.connect(new InetSocketAddress(Inet4Address.getByName(serverInfo.getIp()), serverInfo.getPort()));
@@ -40,7 +57,7 @@ public class TCPClient extends Connector {
 
 
         try {
-            return new TCPClient(channel);
+            return new TCPClient(channel, cachePath);
         } catch (Exception e) {
             log.info("connect exception");
             CloseUtil.close(channel);

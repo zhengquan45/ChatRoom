@@ -8,7 +8,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.WritableByteChannel;
 
 public class IoArgs {
-    private int limit =4;
+    private int limit = 256;
     private ByteBuffer buffer = ByteBuffer.allocate(limit);
 
     public int readFrom(ReadableByteChannel channel) throws IOException {

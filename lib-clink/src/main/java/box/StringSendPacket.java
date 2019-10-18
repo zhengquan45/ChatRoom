@@ -7,7 +7,7 @@ public class StringSendPacket extends BytesSendPacket {
     }
 
     @Override
-    protected byte type() {
+    public byte type() {
         return TYPE_MEMORY_STRING;
     }
 }

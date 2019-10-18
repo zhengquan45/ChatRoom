@@ -25,7 +25,7 @@ public class FileSendPacket extends SendPacket<FileInputStream> {
     }
 
     @Override
-    protected byte type() {
+    public byte type() {
         return TYPE_MEMORY_FILE;
     }
 }

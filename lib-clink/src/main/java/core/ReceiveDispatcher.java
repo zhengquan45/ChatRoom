@@ -8,6 +8,7 @@ public interface ReceiveDispatcher extends Closeable {
     void stop();
 
     interface ReceivePacketCallBack{
+        ReceivePacket<?,?> onArrivedNewPacket(byte type,long length);
         void onReceivePacketCompleted(ReceivePacket receivePacket);
     }
 }

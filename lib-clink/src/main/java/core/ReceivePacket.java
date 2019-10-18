@@ -8,7 +8,7 @@ public abstract class ReceivePacket<Stream extends OutputStream, Entity> extends
 
     private Entity entity;
 
-    public ReceivePacket(int len) {
+    public ReceivePacket(long len) {
         this.length = len;
     }
 

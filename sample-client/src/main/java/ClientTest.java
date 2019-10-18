@@ -2,6 +2,7 @@ import core.IoContext;
 import impl.IoSelectorProvider;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +18,7 @@ public class ClientTest {
     public static final int CONNECT_SPACE = 20;
 
     public static void main(String[] args) throws IOException {
+        File cachePath = Foo.getCacheDir("client/test");
         IoContext ioContext = IoContext.setUp().ioProvider(new IoSelectorProvider()).start();
         ServerInfo serverInfo = UDPSearcher.searchServer(10000);
         log.info("server:{}", serverInfo.toString());
@@ -28,7 +30,7 @@ public class ClientTest {
         final List<TCPClient> tcpClientList = new ArrayList<>();
         for (int i = 0; i < CLIENT_NUM; i++) {
             try {
-                TCPClient tcpClient = TCPClient.startWith(serverInfo);
+                TCPClient tcpClient = TCPClient.startWith(serverInfo,cachePath);
                 if(tcpClient==null){
                     log.error("connect exception");
                     continue;

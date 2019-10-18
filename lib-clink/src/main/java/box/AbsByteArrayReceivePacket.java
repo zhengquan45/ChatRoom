@@ -4,7 +4,7 @@ import core.ReceivePacket;
 
 import java.io.ByteArrayOutputStream;
 public abstract class AbsByteArrayReceivePacket<Entity> extends ReceivePacket<ByteArrayOutputStream,Entity> {
-    public AbsByteArrayReceivePacket(int len) {
+    public AbsByteArrayReceivePacket(long len) {
         super(len);
     }
 

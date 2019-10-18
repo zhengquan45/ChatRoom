@@ -8,7 +8,7 @@ import java.io.FileOutputStream;
 
 public class FileReceivePacket extends ReceivePacket<FileOutputStream, File> {
     private final File file;
-    public FileReceivePacket(int len, File file) {
+    public FileReceivePacket(long len, File file) {
         super(len);
         this.file = file;
     }
@@ -29,7 +29,7 @@ public class FileReceivePacket extends ReceivePacket<FileOutputStream, File> {
     }
 
     @Override
-    protected byte type() {
+    public byte type() {
         return TYPE_MEMORY_FILE;
     }
 }

@@ -1,3 +1,4 @@
+import box.FileSendPacket;
 import core.IoContext;
 import impl.IoSelectorProvider;
 import lombok.extern.slf4j.Slf4j;
@@ -12,19 +13,20 @@ import java.io.*;
 public class Client {
 
     public static void main(String[] args) throws IOException {
+        File cachePath = Foo.getCacheDir("client");
         IoContext ioContext = IoContext.setUp().ioProvider(new IoSelectorProvider()).start();
         ServerInfo serverInfo = UDPSearcher.searchServer(10000);
         log.info("server:{}", serverInfo.toString());
         TCPClient tcpClient = null;
         try {
-            tcpClient = TCPClient.startWith(serverInfo);
-            if(tcpClient!=null){
+            tcpClient = TCPClient.startWith(serverInfo, cachePath);
+            if (tcpClient != null) {
                 write(tcpClient);
             }
         } catch (IOException e) {
             log.info("client connect fail. exception:{}", e.getMessage());
-        }finally {
-            if(tcpClient!=null){
+        } finally {
+            if (tcpClient != null) {
                 tcpClient.exit();
             }
         }
@@ -36,13 +38,24 @@ public class Client {
         BufferedReader input = new BufferedReader(new InputStreamReader(in));
 
 
-        while(true){
+        while (true) {
             String msg = input.readLine();
-            tcpClient.send(msg);
-
-            if(TCPConstants.END.equalsIgnoreCase(msg)){
+            if (TCPConstants.END.equalsIgnoreCase(msg)) {
                 break;
             }
+            if (msg.startsWith("--f")) {
+                String[] array = msg.split(" ");
+                if (array.length >= 2) {
+                    String filePath = array[1];
+                    File file = new File(filePath);
+                    if (file.exists() && file.isFile()) {
+                        FileSendPacket fileSendPacket = new FileSendPacket(file);
+                        tcpClient.send(fileSendPacket);
+                        continue;
+                    }
+                }
+            }
+            tcpClient.send(msg);
         }
     }
 }

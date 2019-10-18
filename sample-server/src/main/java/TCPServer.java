@@ -1,13 +1,18 @@
 import lombok.extern.slf4j.Slf4j;
 import utils.CloseUtil;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.channels.*;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * @author zhengquan
@@ -16,14 +21,16 @@ import java.util.concurrent.*;
 @Slf4j
 public class TCPServer implements ClientHandler.ClientHandlerCallBack{
     private final int port;
+    private final File cachePath;
     private ClientListener listener;
     private Selector selector;
     private ServerSocketChannel server;
     private List<ClientHandler> clientHandlerList = new ArrayList<>();
     private final ExecutorService forwardThreadPoolExecutor;
 
-    public TCPServer(int port) {
+    public TCPServer(int port, File cachePath) {
         this.port = port;
+        this.cachePath = cachePath;
         forwardThreadPoolExecutor = Executors.newFixedThreadPool(5);
     }
 
@@ -117,7 +124,7 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
                         if(key.isAcceptable()){
                             ServerSocketChannel serverSocketChannel = (ServerSocketChannel) key.channel();
                             SocketChannel socketChannel = serverSocketChannel.accept();
-                            ClientHandler clientHandler = new ClientHandler(socketChannel,TCPServer.this);
+                            ClientHandler clientHandler = new ClientHandler(socketChannel,TCPServer.this, cachePath);
                             synchronized (TCPServer.this) {
                                 clientHandlerList.add(clientHandler);
                             }
