@@ -45,4 +45,8 @@ public abstract class Packet<Stream extends Closeable> implements Closeable {
     protected void closeStream() throws IOException {
         stream.close();
     }
+
+    public byte[]headInfo(){
+        return null;
+    }
 }
