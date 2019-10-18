@@ -11,6 +11,21 @@ public class IoArgs {
     private int limit = 256;
     private ByteBuffer buffer = ByteBuffer.allocate(limit);
 
+    public int readFrom(byte[] bytes, int offset, int count) {
+        int size = Math.min(count, buffer.remaining());
+        if (size <= 0) {
+            return 0;
+        }
+        buffer.put(bytes, offset, size);
+        return size;
+    }
+
+    public int writeTo(byte[] bytes, int offset) {
+        int size = Math.min(bytes.length - offset, buffer.remaining());
+        buffer.get(bytes, offset, size);
+        return size;
+    }
+
     public int readFrom(ReadableByteChannel channel) throws IOException {
         startWriting();
         int bytesProduced = 0;
@@ -70,8 +85,8 @@ public class IoArgs {
         buffer.limit(limit);
     }
 
-    public void limit(int limit){
-        this.limit = limit;
+    public void limit(int limit) {
+        this.limit = Math.min(limit, buffer.capacity());
     }
 
     public void finishWriting() {
@@ -83,6 +98,7 @@ public class IoArgs {
         buffer.putInt(total);
         finishWriting();
     }
+
     public Integer readLength() {
         return buffer.getInt();
     }
@@ -91,11 +107,16 @@ public class IoArgs {
         return buffer.capacity();
     }
 
+    public boolean remained() {
+        return buffer.remaining() > 0;
+    }
+
+
     public interface IoArgsEventProcessor {
-       IoArgs provideIoArgs();
+        IoArgs provideIoArgs();
 
-       void onConsumeFailed(IoArgs ioArgs,Exception e);
+        void onConsumeFailed(IoArgs ioArgs, Exception e);
 
-       void onConsumeCompleted(IoArgs ioArgs);
+        void onConsumeCompleted(IoArgs ioArgs);
     }
 }
