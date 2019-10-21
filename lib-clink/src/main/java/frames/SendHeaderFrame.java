@@ -12,6 +12,7 @@ public class SendHeaderFrame extends AbsSendPacketFrame {
     public static final int PACKET_HEADER_FRAME_MIN_LENGTH = 6;
     private final byte[] body;
 
+
     public SendHeaderFrame(short identifier, SendPacket packet) {
         super(PACKET_HEADER_FRAME_MIN_LENGTH,
                 Frame.TYPE_PACKET_HEADER,
