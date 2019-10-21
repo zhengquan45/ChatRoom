@@ -3,6 +3,8 @@ package frames;
 import core.Frame;
 import core.IoArgs;
 
+import java.io.IOException;
+
 public abstract class AbsSendFrame extends Frame {
     protected volatile byte headerRemaining = Frame.FRAME_HEADER_LENGTH;
 
@@ -13,7 +15,7 @@ public abstract class AbsSendFrame extends Frame {
     }
 
     @Override
-    public synchronized boolean handle(IoArgs ioArgs) {
+    public synchronized boolean handle(IoArgs ioArgs) throws IOException {
         try {
             ioArgs.limit(headerRemaining + bodyRemaining);
             ioArgs.startWriting();
@@ -29,11 +31,15 @@ public abstract class AbsSendFrame extends Frame {
         }
     }
 
-    protected abstract int consumeBody(IoArgs ioArgs);
+    protected abstract int consumeBody(IoArgs ioArgs) throws IOException;
 
     protected byte consumeHeader(IoArgs ioArgs) {
         int count = headerRemaining;
         int offset = header.length - count;
         return (byte) ioArgs.readFrom(header, offset, count);
+    }
+
+    protected synchronized boolean isSending(){
+        return headerRemaining < Frame.FRAME_HEADER_LENGTH;
     }
 }

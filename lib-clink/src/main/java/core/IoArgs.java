@@ -11,6 +11,12 @@ public class IoArgs {
     private int limit = 256;
     private ByteBuffer buffer = ByteBuffer.allocate(limit);
 
+    public int fillEmpty(int size) {
+        int fillSize = Math.min(size, buffer.remaining());
+        buffer.position(buffer.position() + fillSize);
+        return fillSize;
+    }
+
     public int readFrom(byte[] bytes, int offset, int count) {
         int size = Math.min(count, buffer.remaining());
         if (size <= 0) {
@@ -27,7 +33,6 @@ public class IoArgs {
     }
 
     public int readFrom(ReadableByteChannel channel) throws IOException {
-        startWriting();
         int bytesProduced = 0;
         while (buffer.hasRemaining()) {
             int len = channel.read(buffer);
@@ -36,7 +41,6 @@ public class IoArgs {
             }
             bytesProduced += len;
         }
-        finishWriting();
         return bytesProduced;
     }
 
@@ -93,11 +97,6 @@ public class IoArgs {
         buffer.flip();
     }
 
-    public void writeLength(int total) {
-        startWriting();
-        buffer.putInt(total);
-        finishWriting();
-    }
 
     public Integer readLength() {
         return buffer.getInt();
