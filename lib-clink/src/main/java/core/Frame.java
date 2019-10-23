@@ -37,6 +37,7 @@ public abstract class Frame {
     public short getIdentifier() {
         return (short) (((short)header[4]) & 0xFF);
     }
+
     public abstract boolean handle(IoArgs ioArgs) throws IOException;
 
     public abstract Frame nextFrame();
