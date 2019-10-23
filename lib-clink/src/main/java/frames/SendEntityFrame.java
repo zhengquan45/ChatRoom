@@ -14,7 +14,7 @@ public class SendEntityFrame extends AbsSendPacketFrame {
 
     SendEntityFrame(short identifier, long entityLength, ReadableByteChannel channel, SendPacket packet) {
         super((int) Math.min(entityLength, Frame.MAX_CAPACITY),
-                Frame.TYPE_PACKET_HEADER,
+                Frame.TYPE_PACKET_ENTITY,
                 Frame.FLAG_NONE,
                 identifier, packet);
         this.unConsumeEntityLength = entityLength - bodyRemaining;
