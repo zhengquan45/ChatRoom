@@ -4,6 +4,8 @@ import core.Frame;
 import core.IoArgs;
 import core.SendPacket;
 import core.ds.BytePriorityNode;
+import frames.AbsSendPacketFrame;
+import frames.CancelSendFrame;
 import frames.SendEntityFrame;
 import frames.SendHeaderFrame;
 
@@ -24,11 +26,8 @@ public class AsyncPacketReader implements Closeable {
         this.provider = provider;
     }
 
-    public void cancel(SendPacket packet) {
 
-    }
-
-    public boolean requestTakePacket() {
+    boolean requestTakePacket() {
         synchronized (this) {
             if (nodeSize >= 1) {
                 return true;
@@ -45,13 +44,33 @@ public class AsyncPacketReader implements Closeable {
         }
     }
 
-
-    @Override
-    public void close() throws IOException {
-
+    synchronized void cancel(SendPacket packet) {
+        if (nodeSize == 0) {
+            return;
+        }
+        for (BytePriorityNode<Frame> x = node, before = null; x != null; before = x, x = x.next) {
+            Frame frame = x.item;
+            if (frame instanceof AbsSendPacketFrame) {
+                AbsSendPacketFrame packetFrame = (AbsSendPacketFrame) frame;
+                //由于设计上这个队列中同时同一个包只会有一个帧存在因此遍历到一个帧就可以退出遍历了
+                if (packetFrame.getPacket() == packet) {
+                    boolean removable = packetFrame.abort();
+                    if (removable) {
+                        removeFrame(x, before);
+                        if (packetFrame instanceof SendHeaderFrame) {
+                            break;
+                        }
+                    }
+                    CancelSendFrame cancelSendFrame = new CancelSendFrame(packetFrame.getIdentifier());
+                    appendNewFrame(cancelSendFrame);
+                    provider.completedPacket(packet, false);
+                    break;
+                }
+            }
+        }
     }
 
-    public IoArgs fillData() {
+    IoArgs fillData() {
         Frame currentFrame = getCurrentFrame();
         if (currentFrame == null) {
             return null;
@@ -61,8 +80,8 @@ public class AsyncPacketReader implements Closeable {
                 Frame nextFrame = currentFrame.nextFrame();
                 if (nextFrame != null) {
                     appendNewFrame(nextFrame);
-                }else if(currentFrame instanceof SendEntityFrame){
-                    provider.completedPacket(((SendEntityFrame) currentFrame).getPacket(),true);
+                } else if (currentFrame instanceof SendEntityFrame) {
+                    provider.completedPacket(((SendEntityFrame) currentFrame).getPacket(), true);
                 }
                 popCurrentFrame();
             }
@@ -73,10 +92,52 @@ public class AsyncPacketReader implements Closeable {
         return null;
     }
 
-    private void popCurrentFrame() {
-
+    @Override
+    public synchronized void close(){
+        while (node != null) {
+            Frame frame = node.item;
+            if (frame instanceof AbsSendPacketFrame) {
+                SendPacket packet = ((AbsSendPacketFrame) frame).getPacket();
+                provider.completedPacket(packet, false);
+            }
+        }
+        nodeSize = 0;
+        node = null;
     }
 
+    private synchronized void appendNewFrame(Frame frame) {
+        BytePriorityNode<Frame> newNode = new BytePriorityNode<>(frame);
+        if (node == null) {
+            node = newNode;
+        } else {
+            node.appendWithPriority(newNode);
+        }
+        nodeSize++;
+    }
+
+    private synchronized void removeFrame(BytePriorityNode<Frame> removeNode, BytePriorityNode<Frame> before) {
+        if (before == null) {
+            node = removeNode.next;
+        } else {
+            before.next = removeNode.next;
+        }
+        nodeSize--;
+        if (node == null) {
+            requestTakePacket();
+        }
+    }
+
+    private synchronized void popCurrentFrame() {
+        node = node.next;
+        nodeSize--;
+        if (node == null) {
+            requestTakePacket();
+        }
+    }
+
+    private synchronized Frame getCurrentFrame() {
+        return node == null ? null : node.item;
+    }
 
     private short getIdentifier() {
         short identifier = ++lastIdentifier;
@@ -86,13 +147,6 @@ public class AsyncPacketReader implements Closeable {
         return identifier;
     }
 
-    private void appendNewFrame(Frame frame) {
-
-    }
-
-    private Frame getCurrentFrame() {
-        return null;
-    }
 
     interface PacketProvider {
         SendPacket takePacket();
