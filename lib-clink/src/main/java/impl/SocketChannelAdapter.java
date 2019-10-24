@@ -81,7 +81,7 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
                     receiveProcessor.onConsumeFailed(null,new IOException("provideIoArgs is null"));
                 }else if (args.readFrom(channel) > 0) {
                     receiveProcessor.onConsumeCompleted(args);
-                } else {
+                }else {
                     receiveProcessor.onConsumeFailed(args,new IOException("channel can't readFrom data"));
                 }
             } catch (IOException e) {

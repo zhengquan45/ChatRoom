@@ -22,6 +22,12 @@ public abstract class AbsReceiveFrame extends Frame {
         return bodyRemaining == 0;
     }
 
+
+    @Override
+    public int getConsumableLength() {
+        return bodyRemaining;
+    }
+
     @Override
     public final Frame nextFrame() {
         return null;

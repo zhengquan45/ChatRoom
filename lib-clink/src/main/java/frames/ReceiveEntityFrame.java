@@ -18,6 +18,6 @@ public class ReceiveEntityFrame extends AbsReceiveFrame {
 
     @Override
     protected int consumeBody(IoArgs ioArgs) throws IOException {
-        return ioArgs.writeTo(channel);
+        return channel==null?ioArgs.setEmpty(bodyRemaining):ioArgs.writeTo(channel);
     }
 }

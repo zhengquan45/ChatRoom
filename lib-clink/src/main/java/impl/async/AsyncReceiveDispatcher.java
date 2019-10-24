@@ -4,8 +4,6 @@ import core.*;
 import utils.CloseUtil;
 
 import java.io.IOException;
-import java.nio.channels.Channels;
-import java.nio.channels.WritableByteChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AsyncReceiveDispatcher implements ReceiveDispatcher {
@@ -13,21 +11,30 @@ public class AsyncReceiveDispatcher implements ReceiveDispatcher {
     private final Receiver receiver;
     private final ReceivePacketCallBack callBack;
 
-    private IoArgs args = new IoArgs();
-    private ReceivePacket<?,?> curReceivePacket;
-    private WritableByteChannel channel;
-    private long total;
-    private long position;
-
+    private final AsyncPacketWriter writer;
     public AsyncReceiveDispatcher(Receiver receiver, ReceivePacketCallBack callBack) {
         this.receiver = receiver;
         this.receiver.setReceiveProcessor(receiveProcessor);
         this.callBack = callBack;
+        this.writer = new AsyncPacketWriter(provider);
     }
 
     @Override
     public void start() {
         registerReceive();
+    }
+
+
+    @Override
+    public void stop() {
+
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (closed.compareAndSet(false, true)) {
+            CloseUtil.close(writer);
+        }
     }
 
     private void registerReceive() {
@@ -42,23 +49,13 @@ public class AsyncReceiveDispatcher implements ReceiveDispatcher {
         CloseUtil.close(this);
     }
 
-    @Override
-    public void stop() {
 
-    }
 
     private final IoArgs.IoArgsEventProcessor receiveProcessor = new IoArgs.IoArgsEventProcessor() {
 
         @Override
         public IoArgs provideIoArgs() {
-            int receiveSize;
-            if (curReceivePacket == null) {
-                receiveSize = 4;
-            } else {
-                receiveSize = (int) Math.min(total - position, args.capacity());
-            }
-            args.limit(receiveSize);
-            return args;
+           return writer.takeIoArgs();
         }
 
         @Override
@@ -68,46 +65,27 @@ public class AsyncReceiveDispatcher implements ReceiveDispatcher {
 
         @Override
         public void onConsumeCompleted(IoArgs ioArgs) {
-            assemblePacket(args);
+            do {
+                writer.consumeIoArgs(ioArgs);
+            }while (ioArgs.remained());
             registerReceive();
         }
     };
 
-    private void assemblePacket(IoArgs args) {
-        //包头
-        if (curReceivePacket == null) {
-            int length = args.readLength();
-            byte type = length >200? Packet.TYPE_MEMORY_FILE:Packet.TYPE_MEMORY_STRING;
-            curReceivePacket = callBack.onArrivedNewPacket(type,length);
-            channel = Channels.newChannel(curReceivePacket.open());
-            total = length;
-            position = 0;
-        }
-        try {
-            int count = args.writeTo(channel);
-            position += count;
-            if (position == total) {
-                completePacket(true);
-                curReceivePacket = null;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            completePacket(false);
+    private final AsyncPacketWriter.PacketProvider provider = new AsyncPacketWriter.PacketProvider() {
+
+
+        @Override
+        public ReceivePacket takePacket(byte type, long length, byte[] headerInfo) {
+            return callBack.onArrivedNewPacket(type,length);
         }
 
-    }
-
-    private void completePacket(boolean succeed) {
-        CloseUtil.close(curReceivePacket, channel);
-        callBack.onReceivePacketCompleted(curReceivePacket);
-        curReceivePacket = null;
-        channel = null;
-    }
-
-    @Override
-    public void close() throws IOException {
-        if (closed.compareAndSet(false, true)) {
-            completePacket(false);
+        @Override
+        public void completedPacket(ReceivePacket packet, boolean succeed) {
+            CloseUtil.close(packet);
+            callBack.onReceivePacketCompleted(packet);
         }
-    }
+    };
+
+
 }

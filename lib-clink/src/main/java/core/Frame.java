@@ -59,4 +59,6 @@ public abstract class Frame {
             throw new RuntimeException();
         }
     }
+
+    public abstract int getConsumableLength();
 }

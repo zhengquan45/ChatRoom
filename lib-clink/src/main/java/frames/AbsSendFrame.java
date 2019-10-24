@@ -32,15 +32,22 @@ public abstract class AbsSendFrame extends Frame {
         }
     }
 
-    protected abstract int consumeBody(IoArgs ioArgs) throws IOException;
-
     protected byte consumeHeader(IoArgs ioArgs) {
         int count = headerRemaining;
         int offset = header.length - count;
         return (byte) ioArgs.readFrom(header, offset, count);
     }
 
-    protected synchronized boolean isSending(){
+    @Override
+    public int getConsumableLength() {
+        return headerRemaining + bodyRemaining;
+    }
+
+    protected synchronized boolean isSending() {
         return headerRemaining < Frame.FRAME_HEADER_LENGTH;
     }
+
+    protected abstract int consumeBody(IoArgs ioArgs) throws IOException;
+
+
 }
