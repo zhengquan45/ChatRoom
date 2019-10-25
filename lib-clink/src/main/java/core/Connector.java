@@ -42,6 +42,7 @@ public abstract class Connector implements Closeable, SocketChannelAdapter.onCha
     }
 
     public void send(String msg) {
+        log.info("send msg:" + msg);
         SendPacket packet = new StringSendPacket(msg);
         sendDispatcher.send(packet);
     }

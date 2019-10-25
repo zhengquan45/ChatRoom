@@ -1,6 +1,7 @@
 package impl;
 
 import core.IoProvider;
+import core.NamedThreadFactory;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -8,11 +9,14 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 public class IoSelectorProvider implements IoProvider {
@@ -29,8 +33,8 @@ public class IoSelectorProvider implements IoProvider {
     public IoSelectorProvider() throws IOException {
         this.readSelector = Selector.open();
         this.writeSelector = Selector.open();
-        this.inputHandlePool = Executors.newFixedThreadPool(4);
-        this.outputHandlePool = Executors.newFixedThreadPool(4);
+        this.inputHandlePool = Executors.newFixedThreadPool(4, new NamedThreadFactory("IoSelectorProvider-Input-"));
+        this.outputHandlePool = Executors.newFixedThreadPool(4, new NamedThreadFactory("IoSelectorProvider-Output-"));
         startRead();
         startWrite();
     }

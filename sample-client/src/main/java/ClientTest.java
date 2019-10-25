@@ -13,16 +13,16 @@ public class ClientTest {
 
     public static final int CLIENT_NUM = 10;
 
-    public static final int SEND_SPACE = 2000;
+    public static final int SEND_SPACE = 1000;
 
-    public static final int CONNECT_SPACE = 20;
+    public static final int CONNECT_SPACE = 0;
 
     public static void main(String[] args) throws IOException {
         File cachePath = Foo.getCacheDir("client/test");
         IoContext ioContext = IoContext.setUp().ioProvider(new IoSelectorProvider()).start();
         ServerInfo serverInfo = UDPSearcher.searchServer(10000);
         log.info("server:{}", serverInfo.toString());
-        if(serverInfo==null){
+        if (serverInfo == null) {
             return;
         }
 
@@ -30,29 +30,30 @@ public class ClientTest {
         final List<TCPClient> tcpClientList = new ArrayList<>();
         for (int i = 0; i < CLIENT_NUM; i++) {
             try {
-                TCPClient tcpClient = TCPClient.startWith(serverInfo,cachePath);
-                if(tcpClient==null){
-                    log.error("connect exception");
-                    continue;
+                TCPClient tcpClient = TCPClient.startWith(serverInfo, cachePath);
+                if (tcpClient == null) {
+                    throw new RuntimeException();
                 }
                 size++;
                 tcpClientList.add(tcpClient);
-            } catch (IOException e) {
-                log.error("connect exception:{}",e.getMessage());
+            } catch (Exception e) {
+                log.error("connect exception:{}", e.getMessage());
             }
-            try {
-                Thread.sleep(CONNECT_SPACE);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            if (CONNECT_SPACE > 0) {
+                try {
+                    Thread.sleep(CONNECT_SPACE);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
         }
 
-        log.info("{} connection ready",size);
+        log.info("{} connection ready", size);
 
         System.in.read();
 
-        Thread thread = new Thread(()->{
-            while(!done){
+        Thread thread = new Thread(() -> {
+            while (!done) {
                 for (TCPClient tcpClient : tcpClientList) {
                     tcpClient.send("Hello~~~");
                 }

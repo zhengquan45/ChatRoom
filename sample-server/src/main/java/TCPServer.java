@@ -1,3 +1,5 @@
+import core.NamedThreadFactory;
+import impl.IoSelectorProvider;
 import lombok.extern.slf4j.Slf4j;
 import utils.CloseUtil;
 
@@ -31,7 +33,7 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
     public TCPServer(int port, File cachePath) {
         this.port = port;
         this.cachePath = cachePath;
-        forwardThreadPoolExecutor = Executors.newFixedThreadPool(5);
+        forwardThreadPoolExecutor = Executors.newFixedThreadPool(5,new NamedThreadFactory("forward-Io-"));
     }
 
     public boolean start(){
