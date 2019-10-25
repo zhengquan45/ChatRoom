@@ -28,7 +28,9 @@ public class AsyncPacketWriter implements Closeable {
     }
 
     synchronized IoArgs takeIoArgs() {
-        ioArgs.limit(currentFrame == null ? Frame.FRAME_HEADER_LENGTH : currentFrame.getConsumableLength());
+        ioArgs.limit(currentFrame == null
+                ? Frame.FRAME_HEADER_LENGTH
+                : currentFrame.getConsumableLength());
         return ioArgs;
     }
 
@@ -71,7 +73,7 @@ public class AsyncPacketWriter implements Closeable {
                     }
 
                     // 接收完成后，直接推出循环，如果还有未消费数据则交给外层调度
-                    currentFrame = null;
+                    this.currentFrame = null;
                     break;
                 }
             } catch (IOException e) {
@@ -85,7 +87,7 @@ public class AsyncPacketWriter implements Closeable {
             short identifier = entityFrame.getIdentifier();
             int length = entityFrame.getBodyLength();
             PacketModel packetModel = map.get(identifier);
-            packetModel.unreceivedLength = -length;
+            packetModel.unreceivedLength -= length;
             if (packetModel.unreceivedLength == 0) {
                 provider.completedPacket(packetModel.packet, true);
                 map.remove(identifier);
@@ -121,7 +123,7 @@ public class AsyncPacketWriter implements Closeable {
     private WritableByteChannel getPacketChannel(short identifier) {
         synchronized (map) {
             PacketModel packetModel = map.get(identifier);
-            return packetModel==null?null:packetModel.channel;
+            return packetModel == null ? null : packetModel.channel;
         }
     }
 
