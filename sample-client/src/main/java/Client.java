@@ -40,7 +40,7 @@ public class Client {
 
         while (true) {
             String msg = input.readLine();
-            if (TCPConstants.END.equalsIgnoreCase(msg)) {
+            if (msg == null || msg.length() == 0 || TCPConstants.END.equalsIgnoreCase(msg)) {
                 break;
             }
             if (msg.startsWith("--f")) {

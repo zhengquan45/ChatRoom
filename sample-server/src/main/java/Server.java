@@ -20,7 +20,7 @@ public class Server {
         IoContext ioContext = IoContext.setUp().ioProvider(new IoSelectorProvider()).start();
         TCPServer tcpServer = new TCPServer(TCPConstants.PORT_SERVER, cachePath);
         boolean succeed = tcpServer.start();
-        if(!succeed){
+        if (!succeed) {
             log.info("TCP connect fail");
             return;
         }
@@ -30,11 +30,11 @@ public class Server {
         String msg;
         do {
             msg = bufferedReader.readLine();
-            if(TCPConstants.END.equalsIgnoreCase(msg)){
+            if (msg == null || msg.length() == 0 || TCPConstants.END.equalsIgnoreCase(msg)) {
                 break;
             }
             tcpServer.broadcast(msg);
-        }while(true);
+        } while (true);
 
         UDPProvider.stop();
         tcpServer.stop();
