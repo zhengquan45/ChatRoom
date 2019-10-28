@@ -18,7 +18,6 @@ public class AsyncSendDispatcher implements SendDispatcher {
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     private final AsyncPacketReader reader;
-    private final Object queueLock = new Object();
 
     public AsyncSendDispatcher(Sender sender) {
         this.sender = sender;
@@ -28,23 +27,28 @@ public class AsyncSendDispatcher implements SendDispatcher {
 
     @Override
     public void send(SendPacket sendPacket) {
-        synchronized (queueLock) {
-            queue.offer(sendPacket);
-            if (sending.compareAndSet(false, true)) {
-                if (reader.requestTakePacket()) {
-                    requestSend();
-                }
-            }
-        }
+        queue.offer(sendPacket);
+        requestSend();
     }
 
 
     private void requestSend() {
-        try {
-            sender.postSendAsync();
-        } catch (IOException e) {
-            closeAndNotify();
+        synchronized (sending) {
+            if (sending.get() || closed.get()) {
+                return;
+            }
+            if(reader.requestTakePacket()){
+                try {
+                    boolean succeed = sender.postSendAsync();
+                    if(succeed){
+                        sending.set(true);
+                    }
+                } catch (IOException e) {
+                    closeAndNotify();
+                }
+            }
         }
+
     }
 
 
@@ -55,18 +59,17 @@ public class AsyncSendDispatcher implements SendDispatcher {
     @Override
     public void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
-            sending.set(false);
             reader.close();
+            queue.clear();
+            synchronized (sending) {
+                sending.set(false);
+            }
         }
     }
 
     @Override
     public void cancel(SendPacket packet) {
-        boolean ret;
-        synchronized (queueLock) {
-            ret = queue.remove(packet);
-        }
-        if (ret) {
+        if (queue.remove(packet)) {
             packet.cancel();
             return;
         }
@@ -77,52 +80,33 @@ public class AsyncSendDispatcher implements SendDispatcher {
 
         @Override
         public IoArgs provideIoArgs() {
-
-           return reader.fillData();
-//            if (channel == null) {
-//                channel = Channels.newChannel(curSendPacket.open());
-//                ioArgs.limit(4);
-////                ioArgs.writeLength((int) curSendPacket.length());
-//            } else {
-//                ioArgs.limit((int) Math.min(total - position, ioArgs.capacity()));
-//                try {
-//                    int count = ioArgs.readFrom(channel);
-//                    position += count;
-//                } catch (IOException e) {
-//                    e.printStackTrace();
-//                    return null;
-//                }
-//            }
-//            return ioArgs;
+            return closed.get()?null:reader.fillData();
         }
 
         @Override
         public void onConsumeFailed(IoArgs ioArgs, Exception e) {
-            if(ioArgs!=null) {
-                e.printStackTrace();
-            }else{
-                //TODO
+            e.printStackTrace();
+            synchronized (sending){
+                sending.set(false);
             }
+            requestSend();
         }
 
         @Override
         public void onConsumeCompleted(IoArgs ioArgs) {
-            if(reader.requestTakePacket()){
-                requestSend();
+            synchronized (sending){
+                sending.set(false);
             }
+            requestSend();
         }
     };
 
     private final AsyncPacketReader.PacketProvider sendPacketProvider = new AsyncPacketReader.PacketProvider() {
         @Override
         public SendPacket takePacket() {
-            SendPacket packet;
-            synchronized (queueLock) {
-                packet = queue.poll();
-                if(packet==null) {
-                    sending.set(false);
-                    return null;
-                }
+            SendPacket packet = queue.poll();
+            if (packet == null) {
+                return null;
             }
             if (packet.isCanceled()) {
                 return takePacket();
