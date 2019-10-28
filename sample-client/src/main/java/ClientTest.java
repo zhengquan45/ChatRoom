@@ -11,7 +11,7 @@ import java.util.List;
 public class ClientTest {
     public static boolean done = false;
 
-    public static final int CLIENT_NUM = 10;
+    public static final int CLIENT_NUM = 1000;
 
     public static final int SEND_SPACE = 1000;
 

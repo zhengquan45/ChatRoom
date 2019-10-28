@@ -3,20 +3,17 @@ package impl;
 import core.IoProvider;
 import core.NamedThreadFactory;
 import lombok.extern.slf4j.Slf4j;
+import utils.CloseUtil;
 
 import java.io.IOException;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.*;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 public class IoSelectorProvider implements IoProvider {
@@ -40,56 +37,12 @@ public class IoSelectorProvider implements IoProvider {
     }
 
     private void startWrite() {
-        Thread writeThread = new Thread("Write Thread Listener") {
-            @Override
-            public void run() {
-                while (!closed.get()) {
-                    try {
-                        if (writeSelector.select() == 0) {
-                            waitSelection(inRegOutput);
-                            continue;
-                        }
-                        Set<SelectionKey> selectionKeys = writeSelector.selectedKeys();
-                        for (SelectionKey selectionKey : selectionKeys) {
-                            if (selectionKey.isValid()) {
-                                handleSelection(selectionKey, SelectionKey.OP_WRITE, outputCallbackMap, outputHandlePool);
-                            }
-                        }
-                        selectionKeys.clear();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        };
-        writeThread.setPriority(Thread.MAX_PRIORITY);
+        Thread writeThread = new SelectorThread("Write Thread Listener", closed, inRegOutput, writeSelector, outputCallbackMap, outputHandlePool, SelectionKey.OP_WRITE);
         writeThread.start();
     }
 
     private void startRead() {
-        Thread readThread = new Thread("Read Thread Listener") {
-            @Override
-            public void run() {
-                while (!closed.get()) {
-                    try {
-                        if (readSelector.select() == 0) {
-                            waitSelection(inRegInput);
-                            continue;
-                        }
-                        Set<SelectionKey> selectionKeys = readSelector.selectedKeys();
-                        for (SelectionKey selectionKey : selectionKeys) {
-                            if (selectionKey.isValid()) {
-                                handleSelection(selectionKey, SelectionKey.OP_READ, inputCallbackMap, inputHandlePool);
-                            }
-                        }
-                        selectionKeys.clear();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        };
-        readThread.setPriority(Thread.MAX_PRIORITY);
+        Thread readThread = new SelectorThread("Read Thread Listener", closed, inRegInput, readSelector, inputCallbackMap, inputHandlePool, SelectionKey.OP_READ);
         readThread.start();
     }
 
@@ -102,12 +55,12 @@ public class IoSelectorProvider implements IoProvider {
     }
 
     public void unRegisterInput(SocketChannel channel) {
-        unRegisterSelection(channel, readSelector, inputCallbackMap);
+        unRegisterSelection(channel, readSelector, inputCallbackMap, inRegInput);
     }
 
 
     public void unRegisterOutput(SocketChannel channel) {
-        unRegisterSelection(channel, writeSelector, outputCallbackMap);
+        unRegisterSelection(channel, writeSelector, outputCallbackMap, inRegOutput);
     }
 
     private static void waitSelection(final AtomicBoolean locker) {
@@ -122,14 +75,25 @@ public class IoSelectorProvider implements IoProvider {
         }
     }
 
-    private static void unRegisterSelection(SocketChannel channel, Selector selector, Map<SelectionKey, Runnable> map) {
-        if (channel.isRegistered()) {
-            SelectionKey key = channel.keyFor(selector);
-            if (key != null) {
-                //erase all interest
-                key.cancel();
-                map.remove(key);
-                selector.wakeup();
+    private static void unRegisterSelection(SocketChannel channel, Selector selector, Map<SelectionKey, Runnable> map, AtomicBoolean locker) {
+        synchronized (locker) {
+            locker.set(true);
+            selector.wakeup();
+            try {
+                if (channel.isRegistered()) {
+                    SelectionKey key = channel.keyFor(selector);
+                    if (key != null) {
+                        //erase all interest
+                        key.cancel();
+                        map.remove(key);
+                    }
+                }
+            } finally {
+                locker.set(false);
+                try {
+                    locker.notify();
+                } catch (Exception ignored) {
+                }
             }
         }
     }
@@ -158,7 +122,7 @@ public class IoSelectorProvider implements IoProvider {
                     callBackMap.put(key, runnable);
                 }
                 return key;
-            } catch (Exception e) {
+            } catch (ClosedChannelException|CancelledKeyException|ClosedSelectorException e) {
                 return null;
             } finally {
                 locker.set(false);
@@ -168,14 +132,19 @@ public class IoSelectorProvider implements IoProvider {
     }
 
 
-    private static void handleSelection(SelectionKey key, int keyOps, Map<SelectionKey, Runnable> inputCallbackMap, ExecutorService inputHandlePool) {
-        key.interestOps(key.interestOps() & ~keyOps);
+    private static void handleSelection(SelectionKey key, int keyOps, Map<SelectionKey, Runnable> inputCallbackMap, ExecutorService inputHandlePool, AtomicBoolean locker) {
+        synchronized (locker) {
+            try {
+                key.interestOps(key.interestOps() & ~keyOps);
+            } catch (CancelledKeyException e) {
+                return;
+            }
+        }
         Runnable runnable = inputCallbackMap.get(key);
         if (runnable != null && !inputHandlePool.isShutdown()) {
             //sync execute
             inputHandlePool.execute(runnable);
         }
-
     }
 
     public void close() throws IOException {
@@ -184,8 +153,58 @@ public class IoSelectorProvider implements IoProvider {
             outputHandlePool.shutdown();
             inputCallbackMap.clear();
             outputCallbackMap.clear();
-            readSelector.wakeup();
-            writeSelector.wakeup();
+            CloseUtil.close(readSelector, writeSelector);
+        }
+    }
+
+    class SelectorThread extends Thread {
+        private final AtomicBoolean closed;
+        private final AtomicBoolean locker;
+        private final Selector selector;
+        private final Map<SelectionKey, Runnable> callMap;
+        private final ExecutorService threadPool;
+        private final int keyOps;
+
+        public SelectorThread(String name, AtomicBoolean closed, AtomicBoolean locker, Selector selector, Map<SelectionKey, Runnable> callMap, ExecutorService threadPool, int keyOps) {
+            super(name);
+            this.setPriority(Thread.MAX_PRIORITY);
+            this.keyOps = keyOps;
+            this.closed = closed;
+            this.locker = locker;
+            this.selector = selector;
+            this.callMap = callMap;
+            this.threadPool = threadPool;
+        }
+
+        @Override
+        public void run() {
+            super.run();
+            AtomicBoolean closed = this.closed;
+            AtomicBoolean locker = this.locker;
+            Selector selector = this.selector;
+            Map<SelectionKey, Runnable> callMap = this.callMap;
+            ExecutorService threadPool = this.threadPool;
+            int keyOps = this.keyOps;
+            while (!closed.get()) {
+                try {
+                    int select = selector.select();
+                    waitSelection(locker);
+                    if (select == 0) continue;
+                    Set<SelectionKey> selectionKeys = selector.selectedKeys();
+                    Iterator<SelectionKey> iterator = selectionKeys.iterator();
+                    while (iterator.hasNext()) {
+                        SelectionKey selectionKey = iterator.next();
+                        if (selectionKey.isValid()) {
+                            handleSelection(selectionKey, keyOps, callMap, threadPool, locker);
+                        }
+                        iterator.remove();
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (ClosedSelectorException ignored) {
+                    break;
+                }
+            }
         }
     }
 }
