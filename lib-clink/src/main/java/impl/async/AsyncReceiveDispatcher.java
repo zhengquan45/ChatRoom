@@ -65,9 +65,9 @@ public class AsyncReceiveDispatcher implements ReceiveDispatcher {
 
         @Override
         public void onConsumeCompleted(IoArgs ioArgs) {
-            do {
+            while (!closed.get() && ioArgs.remained()){
                 writer.consumeIoArgs(ioArgs);
-            }while (ioArgs.remained());
+            }
             registerReceive();
         }
     };

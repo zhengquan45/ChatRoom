@@ -87,10 +87,12 @@ public class AsyncPacketWriter implements Closeable {
             short identifier = entityFrame.getIdentifier();
             int length = entityFrame.getBodyLength();
             PacketModel packetModel = map.get(identifier);
-            packetModel.unreceivedLength -= length;
-            if (packetModel.unreceivedLength == 0) {
-                provider.completedPacket(packetModel.packet, true);
-                map.remove(identifier);
+            if(packetModel!=null) {
+                packetModel.unreceivedLength -= length;
+                if (packetModel.unreceivedLength == 0) {
+                    provider.completedPacket(packetModel.packet, true);
+                    map.remove(identifier);
+                }
             }
         }
     }
