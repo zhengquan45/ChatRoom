@@ -55,7 +55,9 @@ public class AsyncReceiveDispatcher implements ReceiveDispatcher {
 
         @Override
         public IoArgs provideIoArgs() {
-           return writer.takeIoArgs();
+            IoArgs ioArgs = writer.takeIoArgs();
+            ioArgs.startWriting();
+            return ioArgs;
         }
 
         @Override
@@ -65,6 +67,7 @@ public class AsyncReceiveDispatcher implements ReceiveDispatcher {
 
         @Override
         public void onConsumeCompleted(IoArgs ioArgs) {
+            ioArgs.finishWriting();
             while (!closed.get() && ioArgs.remained()){
                 writer.consumeIoArgs(ioArgs);
             }

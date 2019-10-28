@@ -52,28 +52,29 @@ public class IoArgs {
 
 
     public int readFrom(SocketChannel channel) throws IOException {
-        startWriting();
+        ByteBuffer buffer = this.buffer;
         int bytesProduced = 0;
-        while (buffer.hasRemaining()) {
-            int len = channel.read(buffer);
+        int len;
+        do {
+            len = channel.read(buffer);
             if (len < 0) {
-                throw new EOFException();
+                throw new EOFException("current read any data!");
             }
             bytesProduced += len;
-        }
-        finishWriting();
+        } while (buffer.hasRemaining() && len != 0);
         return bytesProduced;
     }
 
     public int writeTo(SocketChannel channel) throws IOException {
         int bytesProduced = 0;
-        while (buffer.hasRemaining()) {
-            int len = channel.write(buffer);
+        int len;
+        do {
+            len = channel.write(buffer);
             if (len < 0) {
-                throw new EOFException();
+                throw new EOFException("current write any data!");
             }
             bytesProduced += len;
-        }
+        } while (buffer.hasRemaining() && len != 0);
         return bytesProduced;
     }
 

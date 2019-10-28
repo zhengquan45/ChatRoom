@@ -70,19 +70,28 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
     /**
      * this is a runnable,a task for .readFrom data from channel to IoArgs.
      */
-    private final IoProvider.HandleInputTask handleInputTask = new IoProvider.HandleInputTask() {
-        protected void canProviderInput() {
+    private final IoProvider.HandleProviderTask handleInputTask = new IoProvider.HandleProviderTask() {
+        @Override
+        protected void onProviderTo(IoArgs args) {
             if (closed.get()) {
                 return;
             }
-            IoArgs args = receiveProcessor.provideIoArgs();
+            if (args == null) {
+                args = receiveProcessor.provideIoArgs();
+            }
             try {
-                if(args==null){
-                    receiveProcessor.onConsumeFailed(null,new IOException("provideIoArgs is null"));
-                }else if (args.readFrom(channel) > 0) {
+                if (args == null) {
+                    receiveProcessor.onConsumeFailed(null, new IOException("provideIoArgs is null"));
+                }
+                int count = args.readFrom(channel);
+                if (count == 0) {
+                    log.error("current read zero data!");
+                }
+                if (args.remained()) {
+                    attach = args;
+                    ioProvider.registerInput(channel,this);
+                } else {
                     receiveProcessor.onConsumeCompleted(args);
-                }else {
-                    receiveProcessor.onConsumeFailed(args,new IOException("channel can't readFrom data"));
                 }
             } catch (IOException e) {
                 log.info("channel readFrom exception:", e);
@@ -91,20 +100,28 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
         }
     };
 
-    private final IoProvider.HandleOutputTask handleOutputTask = new IoProvider.HandleOutputTask() {
+    private final IoProvider.HandleProviderTask handleOutputTask = new IoProvider.HandleProviderTask() {
         @Override
-        protected void canProviderOutput() {
+        protected void onProviderTo(IoArgs args) {
             if (closed.get()) {
                 return;
             }
-            IoArgs args = sendProcessor.provideIoArgs();
+            if (args == null) {
+                args = sendProcessor.provideIoArgs();
+            }
             try {
-                if(args==null){
-                    sendProcessor.onConsumeFailed(null,new IOException("provideIoArgs is null"));
-                }else if (args.writeTo(channel) > 0) {
-                    sendProcessor.onConsumeCompleted(args);
+                if (args == null) {
+                    sendProcessor.onConsumeFailed(null, new IOException("provideIoArgs is null"));
+                }
+                int count = args.writeTo(channel);
+                if (count == 0) {
+                    log.error("current write zero data!");
+                }
+                if (args.remained()) {
+                    attach = args;
+                    ioProvider.registerOutput(channel, this);
                 } else {
-                    sendProcessor.onConsumeFailed(args,new IOException("channel can't writeTo data"));
+                    sendProcessor.onConsumeCompleted(args);
                 }
             } catch (IOException e) {
                 log.info("channel writeTo exception:", e);
