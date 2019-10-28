@@ -13,7 +13,7 @@ public class ClientTest {
 
     public static final int CLIENT_NUM = 1000;
 
-    public static final int SEND_SPACE = 1000;
+    public static final int SEND_SPACE = 100;
 
     public static final int CONNECT_SPACE = 0;
 
