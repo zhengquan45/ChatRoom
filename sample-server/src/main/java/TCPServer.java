@@ -33,7 +33,7 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
     public TCPServer(int port, File cachePath) {
         this.port = port;
         this.cachePath = cachePath;
-        forwardThreadPoolExecutor = Executors.newFixedThreadPool(5,new NamedThreadFactory("forward-Io-"));
+        forwardThreadPoolExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory("forward-Io"));
     }
 
     public boolean start(){
