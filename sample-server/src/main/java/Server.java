@@ -25,7 +25,8 @@ public class Server {
             return;
         }
         UDPProvider.start(TCPConstants.PORT_SERVER);
-
+        FooGui gui = new FooGui("Clink-Server", tcpServer::getStatusString);
+        gui.doShow();
         BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
         String msg;
         do {

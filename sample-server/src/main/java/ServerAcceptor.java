@@ -73,6 +73,10 @@ public class ServerAcceptor extends Thread {
         CloseUtil.close(selector);
     }
 
+    public Selector getSelector() {
+        return selector;
+    }
+
     interface AcceptListener {
         void onNewClientArrived(SocketChannel channel);
     }

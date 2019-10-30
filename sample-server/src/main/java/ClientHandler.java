@@ -1,3 +1,4 @@
+import box.StringReceivePacket;
 import core.Connector;
 import core.Packet;
 import core.ReceivePacket;
@@ -7,28 +8,29 @@ import utils.CloseUtil;
 import java.io.File;
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.ExecutorService;
 
 /**
  * @author zhengquan
  * @date 2019/9/22
  */
 @Slf4j
-public class ClientHandler extends Connector{
-    private final ClientHandlerCallBack callBack;
+public class ClientHandler extends Connector {
     private final String clientInfo;
-    public final File cachePath;
-
-    public ClientHandler(SocketChannel socketChannel, ClientHandlerCallBack callBack, File cachePath) throws IOException {
-        this.callBack = callBack;
-        this.cachePath = cachePath;
-        setup(socketChannel);
+    private final File cachePath;
+    private final ConnectorCloseHandlerChain closeHandlerChain = new DefaultPrintConnectorCloseChain();
+    private final ConnectorStringPacketChain stringPacketChain = new DefaultNonConnectorStringPacketChain();
+    private final ExecutorService deliverThreadPool;
+    public ClientHandler(SocketChannel socketChannel, File cachePath, ExecutorService deliverThreadPool) throws IOException {
         this.clientInfo = socketChannel.getRemoteAddress().toString();
-        log.info("new client connection. {}", clientInfo);
+        this.cachePath = cachePath;
+        this.deliverThreadPool = deliverThreadPool;
+        setup(socketChannel);
     }
 
     public void exit() {
         CloseUtil.close(this);
-        log.info("client quit. {}", clientInfo);
+        closeHandlerChain.handle(this, this);
     }
 
     public String getClientInfo() {
@@ -38,7 +40,7 @@ public class ClientHandler extends Connector{
     @Override
     public void onChannelClosed(SocketChannel channel) {
         super.onChannelClosed(channel);
-        exitBySelf();
+        closeHandlerChain.handle(this, this);
     }
 
     @Override
@@ -50,33 +52,19 @@ public class ClientHandler extends Connector{
     protected void onReceivedNewPacket(ReceivePacket packet) {
         super.onReceivedNewPacket(packet);
         if (Packet.TYPE_MEMORY_STRING == packet.type()) {
-            String string = (String) packet.entity();
-            log.info("{}:{}", getKey(), string);
-            callBack.onNewMessageArrived(this,string);
+            deliverStringPacket((StringReceivePacket) packet);
         }
     }
 
-    private void exitBySelf() {
-        exit();
-        callBack.onSelfClosed(this);
+    private void deliverStringPacket(StringReceivePacket packet) {
+        deliverThreadPool.execute(()-> stringPacketChain.handle(this, packet));
     }
 
-    public interface ClientHandlerCallBack {
-        /**
-         * 关闭自己通知外部的回调
-         *
-         * @param clientHandler
-         */
-        void onSelfClosed(ClientHandler clientHandler);
-
-        /**
-         * 新信息到达的回调
-         *
-         * @param clientHandler
-         * @param msg
-         */
-        void onNewMessageArrived(ClientHandler clientHandler, String msg);
+    public ConnectorCloseHandlerChain getCloseHandlerChain() {
+        return closeHandlerChain;
     }
 
-
+    public ConnectorStringPacketChain getStringPacketChain() {
+        return stringPacketChain;
+    }
 }
