@@ -11,10 +11,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -132,6 +129,10 @@ public class TCPServer implements ServerAcceptor.AcceptListener, Group.GroupMess
         protected boolean consume(ClientHandler clientHandler, Connector connector) {
             synchronized (clientHandlerList) {
                 clientHandlerList.remove(clientHandler);
+                Collection<Group> values = groups.values();
+                for (Group group : values) {
+                    group.removeMember(clientHandler);
+                }
             }
             return true;
         }
