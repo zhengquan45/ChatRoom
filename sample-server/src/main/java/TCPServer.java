@@ -1,5 +1,4 @@
 import core.NamedThreadFactory;
-import impl.IoSelectorProvider;
 import lombok.extern.slf4j.Slf4j;
 import utils.CloseUtil;
 
@@ -11,7 +10,6 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -21,10 +19,10 @@ import java.util.concurrent.Executors;
  * @date 2019/9/22
  */
 @Slf4j
-public class TCPServer implements ClientHandler.ClientHandlerCallBack{
+public class TCPServer implements ClientHandler.ClientHandlerCallBack, ServerAcceptor.AcceptListener {
     private final int port;
     private final File cachePath;
-    private ClientListener listener;
+    private ServerAcceptor acceptor;
     private Selector selector;
     private ServerSocketChannel server;
     private List<ClientHandler> clientHandlerList = new ArrayList<>();
@@ -36,29 +34,29 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
         forwardThreadPoolExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory("forward-Io"));
     }
 
-    public boolean start(){
+    public boolean start() {
         try {
             selector = Selector.open();
             server = ServerSocketChannel.open();
             server.configureBlocking(false);
             server.socket().bind(new InetSocketAddress(port));
             server.register(selector, SelectionKey.OP_ACCEPT);
-            log.info("server info : {}",server.getLocalAddress().toString());
-            listener = new ClientListener();
-            listener.start();
+            log.info("server info : {}", server.getLocalAddress().toString());
+            acceptor = new ServerAcceptor(this);
+            acceptor.start();
         } catch (IOException e) {
-            log.info("create TCPServer fail. exception:{}",e.getMessage());
+            log.info("create TCPServer fail. exception:{}", e.getMessage());
             return false;
         }
         return true;
     }
 
-    public void stop(){
-        if(listener!=null){
-            listener.exit();
+    public void stop() {
+        if (acceptor != null) {
+            acceptor.exit();
         }
 
-        CloseUtil.close(server,selector);
+        CloseUtil.close(server, selector);
 
         synchronized (TCPServer.this) {
             for (ClientHandler clientHandler : clientHandlerList) {
@@ -83,10 +81,10 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
 
     @Override
     public void onNewMessageArrived(ClientHandler clientHandler, String msg) {
-        forwardThreadPoolExecutor.execute(()->{
+        forwardThreadPoolExecutor.execute(() -> {
             synchronized (TCPServer.this) {
                 for (ClientHandler handler : clientHandlerList) {
-                    if(!handler.equals(clientHandler)) {
+                    if (!handler.equals(clientHandler)) {
                         handler.send(msg);
                     }
                 }
@@ -94,55 +92,18 @@ public class TCPServer implements ClientHandler.ClientHandlerCallBack{
         });
     }
 
-    private class ClientListener extends Thread{
-        private boolean done = false;
-        private static final String CLIENT_LISTENER_NAME = "Thread-listen-client";
-
-        public ClientListener() throws IOException {
-            super(CLIENT_LISTENER_NAME);
-
-        }
-
-        @Override
-        public void run() {
-            super.run();
-            Selector selector = TCPServer.this.selector;
-            log.info("server ready");
-            while(!done){
-                try {
-                    if(selector.select()==0){
-                        if(done) {
-                            break;
-                        }
-                        continue;
-                    }
-                    Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
-                    while(iterator.hasNext()){
-                        if(done){
-                            break;
-                        }
-                        SelectionKey key = iterator.next();
-                        iterator.remove();
-                        if(key.isAcceptable()){
-                            ServerSocketChannel serverSocketChannel = (ServerSocketChannel) key.channel();
-                            SocketChannel socketChannel = serverSocketChannel.accept();
-                            ClientHandler clientHandler = new ClientHandler(socketChannel,TCPServer.this, cachePath);
-                            synchronized (TCPServer.this) {
-                                clientHandlerList.add(clientHandler);
-                            }
-                        }
-                    }
-                } catch (IOException e) {
-                  log.info("accept client fail. exception:{}",e.getMessage());
-                }
+    @Override
+    public void onNewClientArrived(SocketChannel channel) {
+        try {
+            ClientHandler clientHandler = new ClientHandler(channel, this, cachePath);
+            log.info("client:" + clientHandler.getClientInfo() + " arrived");
+            synchronized (TCPServer.this) {
+                clientHandlerList.add(clientHandler);
+                log.info("client size:" + clientHandlerList.size());
             }
-            log.info("server closed");
-        }
-
-        void exit(){
-            done = true;
-            selector.wakeup();
+        } catch (IOException e) {
+            e.printStackTrace();
+            log.error("client connect is abnormally");
         }
     }
-
 }

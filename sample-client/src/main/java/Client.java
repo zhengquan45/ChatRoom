@@ -40,8 +40,11 @@ public class Client {
 
         while (true) {
             String msg = input.readLine();
-            if (msg == null || msg.length() == 0 || TCPConstants.END.equalsIgnoreCase(msg)) {
+            if (msg == null || TCPConstants.END.equalsIgnoreCase(msg)) {
                 break;
+            }
+            if (msg.length() == 0) {
+                continue;
             }
             if (msg.startsWith("--f")) {
                 String[] array = msg.split(" ");

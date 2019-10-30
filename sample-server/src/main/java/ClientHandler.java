@@ -31,6 +31,10 @@ public class ClientHandler extends Connector{
         log.info("client quit. {}", clientInfo);
     }
 
+    public String getClientInfo() {
+        return clientInfo;
+    }
+
     @Override
     public void onChannelClosed(SocketChannel channel) {
         super.onChannelClosed(channel);

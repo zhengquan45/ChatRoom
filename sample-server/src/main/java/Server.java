@@ -30,8 +30,11 @@ public class Server {
         String msg;
         do {
             msg = bufferedReader.readLine();
-            if (msg == null || msg.length() == 0 || TCPConstants.END.equalsIgnoreCase(msg)) {
+            if (msg == null || TCPConstants.END.equalsIgnoreCase(msg)) {
                 break;
+            }
+            if (msg.length() == 0) {
+                continue;
             }
             tcpServer.broadcast(msg);
         } while (true);
