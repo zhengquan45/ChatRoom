@@ -1,9 +1,6 @@
 package org.zhq.core;
 
-import org.zhq.box.BytesReceivePacket;
-import org.zhq.box.FileReceivePacket;
-import org.zhq.box.StringReceivePacket;
-import org.zhq.box.StringSendPacket;
+import org.zhq.box.*;
 import org.zhq.impl.SocketChannelAdapter;
 import org.zhq.impl.async.AsyncReceiveDispatcher;
 import org.zhq.impl.async.AsyncSendDispatcher;
@@ -13,6 +10,7 @@ import org.zhq.utils.CloseUtil;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.List;
@@ -77,16 +75,16 @@ public abstract class Connector implements Closeable, SocketChannelAdapter.onCha
     private ReceiveDispatcher.ReceivePacketCallBack echoListener = new ReceiveDispatcher.ReceivePacketCallBack() {
 
         @Override
-        public ReceivePacket<?, ?> onArrivedNewPacket(byte type, long length) {
+        public ReceivePacket<?, ?> onArrivedNewPacket(byte type, long length,byte[]headerInfo) {
             switch (type) {
                 case Packet.TYPE_MEMORY_BYTES:
                     return new BytesReceivePacket(length);
                 case Packet.TYPE_MEMORY_STRING:
                     return new StringReceivePacket(length);
                 case Packet.TYPE_MEMORY_FILE:
-                    return new FileReceivePacket(length, createNewReceiveFile());
+                    return new FileReceivePacket(length, createNewReceiveFile(length,headerInfo));
                 case Packet.TYPE_MEMORY_DIRECT:
-                    return new BytesReceivePacket(length);
+                    return new StreamDirectReceivePacket(createNewReceiveDirectOutputStream(length,headerInfo),length);
                 default:
                     throw new UnsupportedOperationException("Unsupported packet type:" + type);
             }
@@ -103,7 +101,9 @@ public abstract class Connector implements Closeable, SocketChannelAdapter.onCha
         }
     };
 
-    protected abstract File createNewReceiveFile();
+    protected abstract OutputStream createNewReceiveDirectOutputStream(long length, byte[] headerInfo);
+
+    protected abstract File createNewReceiveFile(long length, byte[] headerInfo);
 
 
     protected void onReceivedNewPacket(ReceivePacket packet) {

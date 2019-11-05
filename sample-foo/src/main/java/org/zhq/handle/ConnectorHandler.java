@@ -9,8 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.zhq.Foo;
 import org.zhq.utils.CloseUtil;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.channels.SocketChannel;
 
 /**
@@ -44,7 +46,12 @@ public class ConnectorHandler extends Connector {
     }
 
     @Override
-    protected File createNewReceiveFile() {
+    protected OutputStream createNewReceiveDirectOutputStream(long length, byte[] headerInfo) {
+        return new ByteArrayOutputStream();
+    }
+
+    @Override
+    protected File createNewReceiveFile(long length, byte[] headerInfo) {
         return Foo.createRandomTemp(cachePath);
     }
 

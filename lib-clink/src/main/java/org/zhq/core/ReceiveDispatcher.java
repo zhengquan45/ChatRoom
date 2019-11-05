@@ -8,7 +8,7 @@ public interface ReceiveDispatcher extends Closeable {
     void stop();
 
     interface ReceivePacketCallBack{
-        ReceivePacket<?,?> onArrivedNewPacket(byte type,long length);
+        ReceivePacket<?, ?> onArrivedNewPacket(byte type, long length, byte[] headerInfo);
         void onReceivePacketCompleted(ReceivePacket receivePacket);
         void onReceivedHeartBeat();
     }

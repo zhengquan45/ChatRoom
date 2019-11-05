@@ -2,6 +2,7 @@ package org.zhq.frames;
 
 import org.zhq.core.Frame;
 import org.zhq.core.IoArgs;
+import org.zhq.core.Packet;
 import org.zhq.core.SendPacket;
 
 import java.io.InputStream;
@@ -29,9 +30,9 @@ public class SendHeaderFrame extends AbsSendPacketFrame {
         body[4] = (byte) (packetLength);
         body[5] = packetType;
 
-        if(packetHeadInfo!=null){
-            System.arraycopy(packetHeadInfo,0,
-                    body,PACKET_HEADER_FRAME_MIN_LENGTH,packetHeadInfo.length);
+        if (packetHeadInfo != null) {
+            System.arraycopy(packetHeadInfo, 0,
+                    body, PACKET_HEADER_FRAME_MIN_LENGTH, packetHeadInfo.length);
         }
     }
 
@@ -45,10 +46,13 @@ public class SendHeaderFrame extends AbsSendPacketFrame {
 
     @Override
     public Frame buildNextFrame() {
+        byte type = packet.type();
+        if (Packet.TYPE_MEMORY_DIRECT == type) {
+            return SendDirectEntityFrame.buildEntityFrame(packet,getIdentifier());
+        }
         InputStream stream = packet.open();
         ReadableByteChannel channel = Channels.newChannel(stream);
-
-        return new SendEntityFrame(getIdentifier(),packet.length(),channel,packet);
+        return new SendEntityFrame(getIdentifier(), packet.length(), channel, packet);
     }
 
 

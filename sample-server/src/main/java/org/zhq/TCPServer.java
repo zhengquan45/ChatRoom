@@ -2,7 +2,6 @@ package org.zhq;
 
 import org.zhq.box.StringReceivePacket;
 import org.zhq.core.Connector;
-import org.zhq.core.NamedThreadFactory;
 import org.zhq.core.ScheduleJob;
 import org.zhq.handle.ConnectorHandler;
 import org.zhq.handle.ConnectorCloseHandlerChain;
@@ -15,13 +14,10 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * @author zhengquan

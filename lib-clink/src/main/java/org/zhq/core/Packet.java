@@ -8,6 +8,12 @@ import java.io.IOException;
  */
 public abstract class Packet<Stream extends Closeable> implements Closeable {
 
+    public static final long MAX_PACKET_SIZE = (((0xFFL) << 32) |
+            ((0xFFL) << 24) |
+            ((0xFFL) << 16) |
+            ((0xFFL) << 8) |
+            (0xFFL));
+
     public static final byte TYPE_MEMORY_BYTES = 1;
     public static final byte TYPE_MEMORY_STRING = 2;
     public static final byte TYPE_MEMORY_FILE = 3;
@@ -46,7 +52,7 @@ public abstract class Packet<Stream extends Closeable> implements Closeable {
         stream.close();
     }
 
-    public byte[]headInfo(){
+    public byte[] headInfo() {
         return null;
     }
 }
