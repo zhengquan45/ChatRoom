@@ -33,6 +33,12 @@ public class TCPServer implements ServerAcceptor.AcceptListener, Group.GroupMess
     private final ServerStatistics statistics = new ServerStatistics();
     private final Map<String, Group> groups = new HashMap<>();
 
+    private final Map<ConnectorHandler, ConnectorHandler> audioCmdToStreamMap = new HashMap<>(100);
+    private final Map<ConnectorHandler, ConnectorHandler> audioStreamToCmdMap = new HashMap<>(100);
+
+    private final Map<ConnectorHandler, AudioRoom> audioStreamRoomMap = new HashMap<>();
+    private final Map<String, AudioRoom> audioRoomMap = new HashMap<>(50);
+
     public TCPServer(int port, File cachePath) {
         this.port = port;
         this.cachePath = cachePath;
@@ -92,9 +98,11 @@ public class TCPServer implements ServerAcceptor.AcceptListener, Group.GroupMess
             log.info("client:" + connectorHandler.getClientInfo() + " arrived");
             connectorHandler.getStringPacketChain()
                     .appendLast(statistics.statisticsChain())
-                    .appendLast(new ParseCommandConnectorStringPacketChain());
+                    .appendLast(new ParseCommandConnectorStringPacketChain())
+                    .appendLast(new ParseAudioStreamCommandStringPacketChain());
 
             connectorHandler.getCloseHandlerChain()
+                    .appendLast(new RemoveAudioQueueOnConnectorClosedChain())
                     .appendLast(new RemoveQueueOnConnectorCloseChain());
 
             ScheduleJob scheduleJob = new IdleTimeoutScheduleJob(20 * 1000, connectorHandler);
@@ -104,6 +112,7 @@ public class TCPServer implements ServerAcceptor.AcceptListener, Group.GroupMess
                 connectorHandlerList.add(connectorHandler);
                 log.info("client size:" + connectorHandlerList.size());
             }
+            sendMessageToClient(connectorHandler, Foo.COMMAND_INFO_NAME + connectorHandler.getKey().toString());
         } catch (IOException e) {
             e.printStackTrace();
             log.error("client connect is abnormally");
@@ -179,5 +188,114 @@ public class TCPServer implements ServerAcceptor.AcceptListener, Group.GroupMess
         }
     }
 
+
+    private class ParseAudioStreamCommandStringPacketChain extends org.zhq.handle.ConnectorHandlerChain<StringReceivePacket> {
+        @Override
+        protected boolean consume(ConnectorHandler connectorHandler, StringReceivePacket stringReceivePacket) {
+            String str = stringReceivePacket.entity();
+            if (str.startsWith(Foo.COMMAND_CONNECTOR_BIND)) {
+                String key = str.substring(Foo.COMMAND_CONNECTOR_BIND.length());
+                ConnectorHandler audioStreamConnector = findConnectorFromKey(key);
+                if (audioStreamConnector != null) {
+                    audioCmdToStreamMap.put(connectorHandler, audioStreamConnector);
+                    audioStreamToCmdMap.put(audioStreamConnector, connectorHandler);
+
+                    audioStreamConnector.changeToBridge();
+                }
+            } else if (str.startsWith(Foo.COMMAND_AUDIO_CREATE_ROOM)) {
+                ConnectorHandler audioStreamConnector = findAudioStreamConnector(connectorHandler);
+                if (audioStreamConnector != null) {
+                    AudioRoom room = createNewRoom();
+                    joinRoom(room, audioStreamConnector);
+                    sendMessageToClient(connectorHandler, Foo.COMMAND_INFO_AUDIO_ROOM + room.getRoomCode());
+                }
+            } else if (str.startsWith(Foo.COMMAND_AUDIO_LEAVE_ROOM)) {
+                ConnectorHandler audioStreamConnector = findAudioStreamConnector(connectorHandler);
+                if (audioStreamConnector != null) {
+                    dissolveRoom(audioStreamConnector);
+                    sendMessageToClient(connectorHandler, Foo.COMMAND_INFO_AUDIO_STOP);
+                }
+            } else if (str.startsWith(Foo.COMMAND_AUDIO_JOIN_ROOM)) {
+                ConnectorHandler audioStreamConnector = findAudioStreamConnector(connectorHandler);
+                if (audioStreamConnector != null) {
+                    String roomCode = str.substring(Foo.COMMAND_AUDIO_JOIN_ROOM.length());
+                    AudioRoom audioRoom = audioRoomMap.get(roomCode);
+                    if (audioRoom != null && joinRoom(audioRoom, audioStreamConnector)) {
+                        ConnectorHandler theOtherHandler = audioRoom.getTheOtherHandler(audioStreamConnector);
+                        theOtherHandler.bindToBridge(audioStreamConnector.getSender());
+                        audioStreamConnector.bindToBridge(theOtherHandler.getSender());
+
+                        sendMessageToClient(connectorHandler, Foo.COMMAND_INFO_AUDIO_START);
+                        sendMessageToClient(theOtherHandler, Foo.COMMAND_INFO_AUDIO_START);
+                    } else {
+                        sendMessageToClient(connectorHandler, Foo.COMMAND_INFO_AUDIO_ERROR);
+                    }
+                }
+            } else {
+                return false;
+            }
+            return true;
+        }
+    }
+
+    private void dissolveRoom(ConnectorHandler audioStreamConnector) {
+        AudioRoom audioRoom = audioStreamRoomMap.get(audioStreamConnector);
+        if (audioRoom == null) {
+            return;
+        }
+        List<ConnectorHandler> connectors = audioRoom.getConnectors();
+        for (ConnectorHandler connector : connectors) {
+            connector.unBindToBridge();
+            audioStreamRoomMap.remove(connector);
+            if (connector != audioStreamConnector) {
+                sendMessageToClient(connector, Foo.COMMAND_INFO_AUDIO_STOP);
+            }
+        }
+        audioRoomMap.remove(audioRoom.getRoomCode());
+    }
+
+    private boolean joinRoom(AudioRoom room, ConnectorHandler audioStreamConnector) {
+        if (room.enterRoom(audioStreamConnector)) {
+            audioStreamRoomMap.put(audioStreamConnector, room);
+            return true;
+        }
+        return false;
+    }
+
+    private AudioRoom createNewRoom() {
+        AudioRoom audioRoom;
+        do {
+            audioRoom = new AudioRoom();
+        } while (audioRoomMap.containsKey(audioRoom.getRoomCode()));
+        audioRoomMap.put(audioRoom.getRoomCode(), audioRoom);
+        return audioRoom;
+    }
+
+    private ConnectorHandler findAudioStreamConnector(ConnectorHandler connectorHandler) {
+        return audioCmdToStreamMap.get(connectorHandler);
+    }
+
+    private ConnectorHandler findConnectorFromKey(String key) {
+        for (ConnectorHandler connectorHandler : connectorHandlerList) {
+            if (connectorHandler.getKey().toString().equalsIgnoreCase(key)) {
+                return connectorHandler;
+            }
+        }
+        return null;
+    }
+
+    private class RemoveAudioQueueOnConnectorClosedChain extends org.zhq.handle.ConnectorHandlerChain<Connector> {
+        @Override
+        protected boolean consume(ConnectorHandler connectorHandler, Connector connector) {
+
+            if (audioCmdToStreamMap.containsKey(connectorHandler)) {
+                audioCmdToStreamMap.remove(connectorHandler);
+            } else if (audioStreamToCmdMap.containsKey(connectorHandler)) {
+                audioStreamToCmdMap.remove(connectorHandler);
+                dissolveRoom(connectorHandler);
+            }
+            return false;
+        }
+    }
 
 }
