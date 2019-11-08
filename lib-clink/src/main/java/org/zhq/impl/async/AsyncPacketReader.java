@@ -11,7 +11,7 @@ import java.io.IOException;
 
 public class AsyncPacketReader implements Closeable {
 
-    private volatile IoArgs ioArgs = new IoArgs();
+    private volatile IoArgs ioArgs = new IoArgs(isNeedcomsumeRemainning);
     private final PacketProvider provider;
 
     private volatile BytePriorityNode<Frame> node;

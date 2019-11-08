@@ -104,7 +104,7 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
                 if (count == 0) {
                     log.error("current read zero data!");
                 }
-                if (args.remained()) {
+                if (args.remained() && args.isNeedConsumeRemaining()) {
                     attach = args;
                     ioProvider.registerInput(channel, this);
                 } else {
@@ -138,7 +138,7 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
                 if (count == 0) {
                     log.error("current write zero data!");
                 }
-                if (args.remained()) {
+                if (args.remained() && args.isNeedConsumeRemaining()) {
                     attach = args;
                     ioProvider.registerOutput(channel, this);
                 } else {

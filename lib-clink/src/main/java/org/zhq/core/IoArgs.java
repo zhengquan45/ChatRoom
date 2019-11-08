@@ -8,8 +8,24 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.WritableByteChannel;
 
 public class IoArgs {
-    private int limit = 256;
-    private ByteBuffer buffer = ByteBuffer.allocate(limit);
+    private volatile int limit;
+    private final boolean isNeedConsumeRemaining;
+    private final ByteBuffer buffer;
+
+    public IoArgs() {
+        this(256);
+    }
+
+    public IoArgs(int size) {
+        this(size, true);
+    }
+
+    public IoArgs(int size, boolean isNeedConsumeRemaining) {
+        this.limit = size;
+        this.isNeedConsumeRemaining = isNeedConsumeRemaining;
+        this.buffer = ByteBuffer.allocate(limit);
+    }
+
 
     public int readFrom(byte[] bytes, int offset, int count) {
         int size = Math.min(count, buffer.remaining());
@@ -88,6 +104,10 @@ public class IoArgs {
         this.limit = Math.min(limit, buffer.capacity());
     }
 
+    public void resetLimit() {
+        this.limit = buffer.capacity();
+    }
+
     public void finishWriting() {
         buffer.flip();
     }
@@ -105,6 +125,9 @@ public class IoArgs {
         return buffer.remaining() > 0;
     }
 
+    public boolean isNeedConsumeRemaining() {
+        return isNeedConsumeRemaining;
+    }
 
     public int fillEmpty(int size) {
         int fillSize = Math.min(size, buffer.remaining());

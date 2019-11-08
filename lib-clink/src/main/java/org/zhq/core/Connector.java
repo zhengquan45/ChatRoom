@@ -5,6 +5,7 @@ import org.zhq.impl.SocketChannelAdapter;
 import org.zhq.impl.async.AsyncReceiveDispatcher;
 import org.zhq.impl.async.AsyncSendDispatcher;
 import lombok.extern.slf4j.Slf4j;
+import org.zhq.impl.bridge.BridgeSocketDispatcher;
 import org.zhq.utils.CloseUtil;
 
 import java.io.Closeable;
@@ -42,6 +43,10 @@ public abstract class Connector implements Closeable, SocketChannelAdapter.onCha
         return key;
     }
 
+    public Sender getSender() {
+        return sender;
+    }
+
     public long getLastActiveTime(){
         return Math.max(sender.getLastWriteTime(),receiver.getLastReadTime());
     }
@@ -54,6 +59,33 @@ public abstract class Connector implements Closeable, SocketChannelAdapter.onCha
 
     public void send(SendPacket sendPacket) {
         sendDispatcher.send(sendPacket);
+    }
+
+    public void changeToBridge(){
+        if(receiveDispatcher instanceof BridgeSocketDispatcher){
+            return;
+        }
+        receiveDispatcher.stop();
+        BridgeSocketDispatcher dispatcher = new BridgeSocketDispatcher(receiver);
+        receiveDispatcher = dispatcher;
+        dispatcher.start();
+    }
+
+    public void bindToBridge(Sender sender){
+        if(this.sender == sender){
+            throw new UnsupportedOperationException("Can not set current connector sender");
+        }
+        if(!(receiveDispatcher instanceof BridgeSocketDispatcher)){
+            throw new IllegalStateException("receiveDispatcher isn't bridgeSocketDispatcher");
+        }
+        ((BridgeSocketDispatcher) receiveDispatcher).bindSender(sender);
+    }
+
+    public void unBindToBridge(){
+        if(!(receiveDispatcher instanceof BridgeSocketDispatcher)){
+            throw new IllegalStateException("receiveDispatcher isn't bridgeSocketDispatcher");
+        }
+        ((BridgeSocketDispatcher) receiveDispatcher).bindSender(null);
     }
 
     @Override
