@@ -90,6 +90,9 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
                 return;
             }
             lastReadTime = System.currentTimeMillis();
+            if (receiveProcessor == null) {
+                return;
+            }
             if (args == null) {
                 args = receiveProcessor.provideIoArgs();
             }
@@ -121,6 +124,9 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
                 return;
             }
             lastWriteTime = System.currentTimeMillis();
+            if (sendProcessor == null) {
+                return;
+            }
             if (args == null) {
                 args = sendProcessor.provideIoArgs();
             }
