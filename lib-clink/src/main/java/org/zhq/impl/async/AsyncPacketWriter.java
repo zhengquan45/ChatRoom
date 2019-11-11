@@ -19,7 +19,7 @@ public class AsyncPacketWriter implements Closeable {
 
     private final Map<Short, PacketModel> map = new HashMap<>();
 
-    private final IoArgs ioArgs = new IoArgs(isNeedcomsumeRemainning);
+    private final IoArgs ioArgs = new IoArgs();
 
     private volatile Frame currentFrame;
 
