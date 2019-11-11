@@ -23,12 +23,18 @@ import java.nio.channels.SocketChannel;
 @Slf4j
 public class TCPClient extends ConnectorHandler {
 
-    public TCPClient(SocketChannel channel, File cachePath) throws IOException {
+    public TCPClient(SocketChannel channel, File cachePath, boolean printReceiveString) throws IOException {
         super(channel, cachePath);
-        getStringPacketChain().appendLast(new PrintReceiveStringPacketChain());
+        if (printReceiveString) {
+            getStringPacketChain().appendLast(new PrintReceiveStringPacketChain());
+        }
     }
 
-    public static TCPClient startWith(ServerInfo serverInfo, File cachePath) throws IOException {
+    public static TCPClient startWith(ServerInfo serverInfo, File cachePath)throws IOException{
+       return startWith(serverInfo,cachePath,true);
+    }
+
+    public static TCPClient startWith(ServerInfo serverInfo, File cachePath,boolean printReceiveString) throws IOException {
         SocketChannel channel = SocketChannel.open();
 
         channel.connect(new InetSocketAddress(Inet4Address.getByName(serverInfo.getIp()), serverInfo.getPort()));
@@ -36,7 +42,7 @@ public class TCPClient extends ConnectorHandler {
 
 
         try {
-            return new TCPClient(channel, cachePath);
+            return new TCPClient(channel, cachePath,printReceiveString);
         } catch (Exception e) {
             log.info("connect exception");
             CloseUtil.close(channel);
