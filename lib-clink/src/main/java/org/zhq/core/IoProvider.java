@@ -22,5 +22,11 @@ public interface IoProvider extends Closeable {
         }
 
         protected abstract void onProviderTo(IoArgs ioArgs);
+
+        public void checkAttachNull(){
+            if(attach!=null){
+                throw new IllegalStateException("Current attach is not empty!");
+            }
+        }
     }
 }

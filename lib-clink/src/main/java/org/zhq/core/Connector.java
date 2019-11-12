@@ -52,7 +52,7 @@ public abstract class Connector implements Closeable, SocketChannelAdapter.onCha
     }
 
     public void send(String msg) {
-        log.info("send msg:" + msg);
+        log.info("发送信息",msg);
         SendPacket packet = new StringSendPacket(msg);
         sendDispatcher.send(packet);
     }
@@ -139,7 +139,7 @@ public abstract class Connector implements Closeable, SocketChannelAdapter.onCha
 
 
     protected void onReceivedNewPacket(ReceivePacket packet) {
-        log.info("{}:[New Packet]-Type:{},length:{}", key.toString(), packet.type(), packet.length());
+//        log.info("{}:[New Packet]-Type:{},length:{}", key.toString(), packet.type(), packet.length());
     }
 
     public void schedule(ScheduleJob scheduleJob){

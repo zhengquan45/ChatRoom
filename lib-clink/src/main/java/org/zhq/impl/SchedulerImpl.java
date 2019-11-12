@@ -12,7 +12,7 @@ public class SchedulerImpl implements Scheduler {
 
     public SchedulerImpl(int poolSize) {
         this.scheduledExecutorService = Executors.newScheduledThreadPool(poolSize, new NamedThreadFactory("Scheduler-Thread"));
-        this.deliveryPool = Executors.newSingleThreadExecutor(new NamedThreadFactory("Delivery-Thread"));
+        this.deliveryPool = Executors.newFixedThreadPool(4,new NamedThreadFactory("Delivery-Thread"));
     }
 
     @Override

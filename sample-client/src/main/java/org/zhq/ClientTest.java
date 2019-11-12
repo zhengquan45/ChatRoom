@@ -39,6 +39,7 @@ public class ClientTest {
                 .scheduler(new SchedulerImpl(1))
                 .start();
 
+        System.in.read();
         int size = 0;
         final List<TCPClient> tcpClientList = new ArrayList<>(CLIENT_NUM);
 

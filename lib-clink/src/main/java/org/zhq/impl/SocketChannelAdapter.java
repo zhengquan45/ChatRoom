@@ -50,6 +50,7 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
         if (closed.get()) {
             throw new IOException("current channel is already closed.");
         }
+        handleInputTask.checkAttachNull();
         return ioProvider.registerInput(channel, handleInputTask);
     }
 
@@ -63,7 +64,10 @@ public class SocketChannelAdapter implements Sender, Receiver, Closeable {
         if (closed.get()) {
             throw new IOException("current channel is already closed.");
         }
-        return ioProvider.registerOutput(channel, handleOutputTask);
+        handleOutputTask.checkAttachNull();
+//        ioProvider.registerOutput(channel, handleOutputTask);
+        handleOutputTask.run();
+        return true;
     }
 
     @Override

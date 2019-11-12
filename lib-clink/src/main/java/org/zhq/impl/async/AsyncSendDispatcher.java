@@ -46,9 +46,10 @@ public class AsyncSendDispatcher implements SendDispatcher {
             }
             if (reader.requestTakePacket()) {
                 try {
+                    sending.set(true);
                     boolean succeed = sender.postSendAsync();
-                    if (succeed) {
-                        sending.set(true);
+                    if (!succeed) {
+                        sending.set(false);
                     }
                 } catch (IOException e) {
                     closeAndNotify();

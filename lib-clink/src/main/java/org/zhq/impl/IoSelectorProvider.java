@@ -47,11 +47,11 @@ public class IoSelectorProvider implements IoProvider {
     }
 
     public boolean registerInput(SocketChannel channel, HandleProviderTask callback) {
-        return registerSelector(channel, readSelector, SelectionKey.OP_READ, inRegInput, inputCallbackMap, callback) != null;
+        return registerSelection(channel, readSelector, SelectionKey.OP_READ, inRegInput, inputCallbackMap, callback) != null;
     }
 
     public boolean registerOutput(SocketChannel channel, HandleProviderTask callback) {
-        return registerSelector(channel, writeSelector, SelectionKey.OP_WRITE, inRegOutput, outputCallbackMap, callback) != null;
+        return registerSelection(channel, writeSelector, SelectionKey.OP_WRITE, inRegOutput, outputCallbackMap, callback) != null;
     }
 
     public void unRegisterInput(SocketChannel channel) {
@@ -98,9 +98,9 @@ public class IoSelectorProvider implements IoProvider {
         }
     }
 
-    private static SelectionKey registerSelector(SocketChannel channel, Selector selector,
-                                                 int registerOps, AtomicBoolean locker,
-                                                 Map<SelectionKey, Runnable> callBackMap, Runnable runnable) {
+    private static SelectionKey registerSelection(SocketChannel channel, Selector selector,
+                                                  int registerOps, AtomicBoolean locker,
+                                                  Map<SelectionKey, Runnable> callBackMap, Runnable runnable) {
         synchronized (locker) {
             locker.set(true);
             try {
