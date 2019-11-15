@@ -9,6 +9,7 @@ import org.zhq.handle.ConnectorCloseHandlerChain;
 import org.zhq.handle.ConnectorHandler;
 import org.zhq.impl.IoSelectorProvider;
 import lombok.extern.slf4j.Slf4j;
+import org.zhq.impl.IoStealingSelectorProvider;
 import org.zhq.impl.SchedulerImpl;
 import org.zhq.impl.schedule.IdleTimeoutScheduleJob;
 import org.zhq.utils.CloseUtil;
@@ -25,7 +26,7 @@ public class Client {
     public static void main(String[] args) throws IOException {
         File cachePath = Foo.getCacheDir("client");
         IoContext ioContext = IoContext.setUp()
-                .ioProvider(new IoSelectorProvider())
+                .ioProvider(new IoStealingSelectorProvider(1))
                 .scheduler(new SchedulerImpl(1))
                 .start();
         ServerInfo serverInfo = UDPSearcher.searchServer(10000);

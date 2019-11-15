@@ -3,6 +3,7 @@ package org.zhq;
 import org.zhq.constants.TCPConstants;
 import org.zhq.core.IoContext;
 import org.zhq.impl.IoSelectorProvider;
+import org.zhq.impl.IoStealingSelectorProvider;
 import org.zhq.impl.SchedulerImpl;
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,7 +23,7 @@ public class Server {
     public static void main(String[] args) throws IOException {
         File cachePath = Foo.getCacheDir("server");
         IoContext ioContext = IoContext.setUp()
-                .ioProvider(new IoSelectorProvider())
+                .ioProvider(new IoStealingSelectorProvider(1))
                 .scheduler(new SchedulerImpl(1)).start();
         TCPServer tcpServer = new TCPServer(TCPConstants.PORT_SERVER, cachePath);
         boolean succeed = tcpServer.start();
