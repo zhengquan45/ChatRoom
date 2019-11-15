@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class StealingSelectorThread extends Thread {
 
@@ -20,8 +21,16 @@ public abstract class StealingSelectorThread extends Thread {
     private final LinkedBlockingQueue<IoTask> registerTaskQueue = new LinkedBlockingQueue<>();
     private final List<IoTask> onceReadyTaskCache = new ArrayList<>(200);
 
+    private final AtomicLong saturatingCapacity = new AtomicLong();
+
+    private volatile StealingService stealingService;
+
     protected StealingSelectorThread(Selector selector) {
         this.selector = selector;
+    }
+
+    public void setStealingService(StealingService stealingService) {
+        this.stealingService = stealingService;
     }
 
     public boolean register(SocketChannel channel, int ops, IoProvider.HandleProviderTask callback) {
@@ -70,7 +79,7 @@ public abstract class StealingSelectorThread extends Thread {
                         key.interestOps(key.interestOps() | ops);
                     } else {
                         // Not registered. call register method add interest event
-                        key= channel.register(selector, ops, new KeyAttachment());
+                        key = channel.register(selector, ops, new KeyAttachment());
                     }
                     Object attachment = key.attachment();
                     if (attachment != null) {
@@ -94,12 +103,27 @@ public abstract class StealingSelectorThread extends Thread {
 
     private void consumeTodoTasks(final LinkedBlockingQueue<IoTask> readyTaskQueue, LinkedBlockingQueue<IoTask> registerTaskQueue) {
         IoTask task = readyTaskQueue.poll();
+        final AtomicLong saturatingCapacity = this.saturatingCapacity;
         while (task != null) {
+            saturatingCapacity.incrementAndGet();
             if (processTask(task)) {
                 registerTaskQueue.offer(task);
             }
             task = readyTaskQueue.poll();
         }
+
+        final StealingService stealingService = this.stealingService;
+        if(stealingService!=null){
+            task = stealingService.steal(readyTaskQueue);
+            while(task!=null){
+                saturatingCapacity.incrementAndGet();
+                if (processTask(task)) {
+                    registerTaskQueue.offer(task);
+                }
+                task = stealingService.steal(readyTaskQueue);
+            }
+        }
+
     }
 
     @Override
@@ -170,6 +194,18 @@ public abstract class StealingSelectorThread extends Thread {
     }
 
     protected abstract boolean processTask(IoTask task);
+
+    public LinkedBlockingQueue<IoTask> getReadyTaskQueue() {
+        return readyTaskQueue;
+    }
+
+    public long getSaturatingCapacity() {
+        if (selector.isOpen()) {
+            return saturatingCapacity.get();
+        } else {
+            return -1;
+        }
+    }
 
     static class KeyAttachment {
         IoTask taskForReadable;

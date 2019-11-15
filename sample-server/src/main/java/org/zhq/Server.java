@@ -23,7 +23,7 @@ public class Server {
     public static void main(String[] args) throws IOException {
         File cachePath = Foo.getCacheDir("server");
         IoContext ioContext = IoContext.setUp()
-                .ioProvider(new IoStealingSelectorProvider(1))
+                .ioProvider(new IoStealingSelectorProvider(3))
                 .scheduler(new SchedulerImpl(1)).start();
         TCPServer tcpServer = new TCPServer(TCPConstants.PORT_SERVER, cachePath);
         boolean succeed = tcpServer.start();
