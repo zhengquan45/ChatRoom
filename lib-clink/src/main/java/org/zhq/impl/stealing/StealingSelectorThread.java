@@ -1,6 +1,7 @@
 package org.zhq.impl.stealing;
 
 import org.zhq.core.IoProvider;
+import org.zhq.core.IoTask;
 import org.zhq.utils.CloseUtil;
 
 import java.io.IOException;

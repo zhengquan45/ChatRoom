@@ -5,23 +5,32 @@ import java.nio.channels.SocketChannel;
 
 public interface IoProvider extends Closeable {
 
-    boolean registerInput(SocketChannel channel, HandleProviderTask callback);
+    void register(HandleProviderTask callback)throws Exception;
 
-    boolean registerOutput(SocketChannel channel, HandleProviderTask callback);
+    void unRegister(SocketChannel channel);
 
-    void unRegisterInput(SocketChannel channel);
-
-    void unRegisterOutput(SocketChannel channel);
-
-
-    abstract class HandleProviderTask implements Runnable {
+    abstract class HandleProviderTask extends IoTask implements Runnable {
         protected volatile IoArgs attach;
 
-        public void run() {
-            onProviderTo(attach);
+        private IoProvider ioProvider;
+
+        public HandleProviderTask(SocketChannel channel, int ops, IoProvider ioProvider) {
+            super(channel, ops);
+            this.ioProvider = ioProvider;
         }
 
-        protected abstract void onProviderTo(IoArgs ioArgs);
+        @Override
+        public final void run() {
+            if(onProviderIo(attach)){
+                try {
+                    ioProvider.register(this);
+                } catch (Exception e) {
+                    fireThrowable(e);
+                }
+            }
+        }
+
+        protected abstract boolean onProviderIo(IoArgs ioArgs);
 
         public void checkAttachNull(){
             if(attach!=null){

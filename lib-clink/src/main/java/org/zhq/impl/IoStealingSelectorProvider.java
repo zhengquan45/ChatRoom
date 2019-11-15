@@ -1,7 +1,7 @@
 package org.zhq.impl;
 
 import org.zhq.core.IoProvider;
-import org.zhq.impl.stealing.IoTask;
+import org.zhq.core.IoTask;
 import org.zhq.impl.stealing.StealingSelectorThread;
 import org.zhq.impl.stealing.StealingService;
 

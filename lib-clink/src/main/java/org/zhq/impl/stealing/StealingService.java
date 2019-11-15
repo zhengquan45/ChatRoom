@@ -1,5 +1,7 @@
 package org.zhq.impl.stealing;
 
+import org.zhq.core.IoTask;
+
 import java.util.Arrays;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.IntFunction;
